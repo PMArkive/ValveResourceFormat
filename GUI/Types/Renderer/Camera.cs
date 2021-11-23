@@ -1,14 +1,14 @@
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
-using OpenTK.Input;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace GUI.Types.Renderer
 {
     internal class Camera
     {
         private const float CAMERASPEED = 300f; // Per second
-        private const float FOV = OpenTK.MathHelper.PiOver4;
+        private const float FOV = OpenTK.Mathematics.MathHelper.PiOver4;
 
         public Vector3 Location { get; private set; }
         public float Pitch { get; private set; }
@@ -54,7 +54,7 @@ namespace GUI.Types.Renderer
 
         private Vector3 GetRightVector()
         {
-            return new Vector3((float)Math.Cos(Yaw - OpenTK.MathHelper.PiOver2), (float)Math.Sin(Yaw - OpenTK.MathHelper.PiOver2), 0);
+            return new Vector3((float)Math.Cos(Yaw - OpenTK.Mathematics.MathHelper.PiOver2), (float)Math.Sin(Yaw - OpenTK.Mathematics.MathHelper.PiOver2), 0);
         }
 
         public void SetViewportSize(int viewportWidth, int viewportHeight)
@@ -150,7 +150,7 @@ namespace GUI.Types.Renderer
         {
             KeyboardState = keyboardState;
 
-            if (MouseOverRenderArea && mouseState.LeftButton == ButtonState.Pressed)
+            if (MouseOverRenderArea && mouseState.IsButtonDown(MouseButton.Left))
             {
                 if (!MouseDragging)
                 {
@@ -166,7 +166,7 @@ namespace GUI.Types.Renderer
                 MousePreviousPosition = mouseNewCoords;
             }
 
-            if (!MouseOverRenderArea || mouseState.LeftButton == ButtonState.Released)
+            if (!MouseOverRenderArea || !mouseState.IsButtonDown(MouseButton.Left))
             {
                 MouseDragging = false;
                 MouseDelta = default;
@@ -178,41 +178,41 @@ namespace GUI.Types.Renderer
             var speed = CAMERASPEED * deltaTime;
 
             // Double speed if shift is pressed
-            if (KeyboardState.IsKeyDown(Key.ShiftLeft))
+            if (KeyboardState.IsKeyDown(Keys.LeftShift))
             {
                 speed *= 2;
             }
-            else if (KeyboardState.IsKeyDown(Key.F))
+            else if (KeyboardState.IsKeyDown(Keys.F))
             {
                 speed *= 10;
             }
 
-            if (KeyboardState.IsKeyDown(Key.W))
+            if (KeyboardState.IsKeyDown(Keys.W))
             {
                 Location += GetForwardVector() * speed;
             }
 
-            if (KeyboardState.IsKeyDown(Key.S))
+            if (KeyboardState.IsKeyDown(Keys.S))
             {
                 Location -= GetForwardVector() * speed;
             }
 
-            if (KeyboardState.IsKeyDown(Key.D))
+            if (KeyboardState.IsKeyDown(Keys.D))
             {
                 Location += GetRightVector() * speed;
             }
 
-            if (KeyboardState.IsKeyDown(Key.A))
+            if (KeyboardState.IsKeyDown(Keys.A))
             {
                 Location -= GetRightVector() * speed;
             }
 
-            if (KeyboardState.IsKeyDown(Key.Z))
+            if (KeyboardState.IsKeyDown(Keys.Z))
             {
                 Location += new Vector3(0, 0, -speed);
             }
 
-            if (KeyboardState.IsKeyDown(Key.Q))
+            if (KeyboardState.IsKeyDown(Keys.Q))
             {
                 Location += new Vector3(0, 0, speed);
             }
@@ -221,13 +221,13 @@ namespace GUI.Types.Renderer
         // Prevent camera from going upside-down
         private void ClampRotation()
         {
-            if (Pitch >= OpenTK.MathHelper.PiOver2)
+            if (Pitch >= OpenTK.Mathematics.MathHelper.PiOver2)
             {
-                Pitch = OpenTK.MathHelper.PiOver2 - 0.001f;
+                Pitch = OpenTK.Mathematics.MathHelper.PiOver2 - 0.001f;
             }
-            else if (Pitch <= -OpenTK.MathHelper.PiOver2)
+            else if (Pitch <= -OpenTK.Mathematics.MathHelper.PiOver2)
             {
-                Pitch = -OpenTK.MathHelper.PiOver2 + 0.001f;
+                Pitch = -OpenTK.Mathematics.MathHelper.PiOver2 + 0.001f;
             }
         }
     }

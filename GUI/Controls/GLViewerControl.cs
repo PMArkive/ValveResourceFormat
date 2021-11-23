@@ -7,10 +7,9 @@ using System.Linq;
 using System.Windows.Forms;
 using GUI.Types.Renderer;
 using GUI.Utils;
-using OpenTK;
-using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
-using OpenTK.Input;
+using OpenTK.WinForms;
+using GLControl = OpenTK.WinForms.GLControl;
 
 namespace GUI.Controls
 {
@@ -37,6 +36,8 @@ namespace GUI.Controls
 
         private static bool hasCheckedOpenGL;
 
+        private INativeInput NativeInput;
+
         public GLViewerControl()
         {
             InitializeComponent();
@@ -47,11 +48,15 @@ namespace GUI.Controls
             stopwatch = new Stopwatch();
 
             // Initialize GL control
+            GLControl = new GLControl(new GLControlSettings
+            {
 #if DEBUG
-            GLControl = new GLControl(new GraphicsMode(32, 24, 0, 8), 3, 3, GraphicsContextFlags.Debug);
+                Flags = OpenTK.Windowing.Common.ContextFlags.Default,
 #else
-            GLControl = new GLControl(new GraphicsMode(32, 24, 0, 8), 3, 3, GraphicsContextFlags.Default);
+                Flags = OpenTK.Windowing.Common.ContextFlags.Debug,
 #endif
+            });
+
             GLControl.Load += OnLoad;
             GLControl.Paint += OnPaint;
             GLControl.Resize += OnResize;
@@ -63,6 +68,8 @@ namespace GUI.Controls
 
             GLControl.Dock = DockStyle.Fill;
             glControlContainer.Controls.Add(GLControl);
+
+            NativeInput = GLControl.EnableNativeInput();
         }
 
         private void SetFps(double fps)
@@ -275,7 +282,7 @@ namespace GUI.Controls
             stopwatch.Restart();
 
             Camera.Tick(frameTime);
-            Camera.HandleInput(Mouse.GetState(), Keyboard.GetState());
+            Camera.HandleInput(NativeInput.MouseState, NativeInput.KeyboardState);
 
             SetFps(1f / frameTime);
 

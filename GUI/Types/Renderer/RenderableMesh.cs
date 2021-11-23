@@ -212,7 +212,7 @@ namespace GUI.Types.Renderer
             if (objectDrawCall.ContainsKey("m_vTintColor"))
             {
                 var tintColor = objectDrawCall.GetSubCollection("m_vTintColor").ToVector3();
-                drawCall.TintColor = new OpenTK.Vector3(tintColor.X, tintColor.Y, tintColor.Z);
+                drawCall.TintColor = new OpenTK.Mathematics.Vector3(tintColor.X, tintColor.Y, tintColor.Z);
             }
 
             if (indexElementSize == 2)
