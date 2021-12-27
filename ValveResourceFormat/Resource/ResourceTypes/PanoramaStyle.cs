@@ -37,56 +37,50 @@ namespace ValveResourceFormat.ResourceTypes
     {
         public static byte[] Decode(byte[] data, IKeyValueCollection sourceMap)
         {
-            var sourceLineByteIndices = sourceMap.GetIntegerArray("SourceLineByteIndexes");
-            var sourceByteRangeToDestByteRange = ParseByteRanges(sourceMap);
+            var mapping = sourceMap.GetArray("DBITSLC", kvArray => (kvArray.GetInt32Property("0"), kvArray.GetInt32Property("1"), kvArray.GetInt32Property("2")));
 
             var output = new List<IEnumerable<byte>>();
-            var index = 0;
-            var breakIndex = 1;
-            foreach (var ((sourceFrom, sourceTo), (destinationFrom, destinationTo)) in sourceByteRangeToDestByteRange)
+
+            var currentCol = 0;
+            var currentLine = 1;
+
+            for (var i = 0; i < mapping.Length - 1; i++)
             {
-                var text = Encoding.UTF8.GetString(data.Skip(destinationFrom).Take(destinationTo - destinationFrom + 1).ToArray());
+                var (startIndex, sourceLine, sourceColumn) = mapping[i];
+                var (nextIndex, _, _) = mapping[i + 1];
 
                 // Prepend newlines if they are in front of this chunk according to sourceLineByteIndices
-                while (breakIndex < sourceLineByteIndices.Length && sourceLineByteIndices[breakIndex] < sourceFrom)
+                if (currentLine < sourceLine)
                 {
+                    output.Add(Enumerable.Repeat(Encoding.UTF8.GetBytes("\n")[0], sourceLine - currentLine));
+                    currentCol = 0;
+                    currentLine = sourceLine;
+                }
+                else if (sourceLine < currentLine)
+                {
+                    // Referring back to an object higher in hierarchy, also add newline here
                     output.Add(Enumerable.Repeat(Encoding.UTF8.GetBytes("\n")[0], 1));
-                    index = (int)sourceLineByteIndices[breakIndex] + 1;
-                    breakIndex++;
+                    currentCol = 0;
+                    currentLine++;
                 }
 
                 // Prepend spaces until we catch up to the index we need to be at
-                if (index < sourceFrom)
+                if (currentCol < sourceColumn)
                 {
-                    output.Add(Enumerable.Repeat(Encoding.UTF8.GetBytes(" ")[0], sourceFrom - index));
-                    index += sourceFrom - index;
+                    output.Add(Enumerable.Repeat(Encoding.UTF8.GetBytes(" ")[0], sourceColumn - currentCol));
+                    currentCol = sourceColumn;
                 }
 
-                var length = destinationTo - destinationFrom + 1;
-
                 // Copy destination
-                output.Add(data.Skip(destinationFrom).Take(length));
-                index += length;
+                var length = nextIndex - startIndex;
+                output.Add(data.Skip(startIndex).Take(length));
+                currentCol += length;
             }
+
+            output.Add(Enumerable.Repeat(Encoding.UTF8.GetBytes("\n")[0], 1));
+            output.Add(data.Skip(mapping[mapping.Length - 1].Item1));
 
             return output.SelectMany(_ => _).ToArray();
-        }
-
-        private static IEnumerable<((int sourceFrom, int sourceTo), (int destFrom, int destTo))> ParseByteRanges(IKeyValueCollection sourceMap)
-        {
-            foreach (var range in sourceMap.GetArray("SourceByteRangeToDestByteRange"))
-            {
-                var sourceRange = range.GetProperty<IKeyValueCollection>("0");
-                var destinationRange = range.GetProperty<IKeyValueCollection>("1");
-
-                var sourceFrom = sourceRange.GetInt32Property("0");
-                var sourceTo = sourceRange.GetInt32Property("1");
-
-                var destinationFrom = destinationRange.GetInt32Property("0");
-                var destinationTo = destinationRange.GetInt32Property("1");
-
-                yield return ((sourceFrom, sourceTo), (destinationFrom, destinationTo));
-            }
         }
     }
 }
