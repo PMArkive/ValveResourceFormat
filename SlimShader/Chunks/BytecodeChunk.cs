@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SlimShader.Chunks.Common;
 using SlimShader.Chunks.Ifce;
 using SlimShader.Chunks.Rdef;
 using SlimShader.Chunks.Sfi0;
@@ -33,7 +34,7 @@ namespace SlimShader.Chunks
 		public ChunkType ChunkType { get; private set; }
 		public uint ChunkSize { get; private set; }
 
-		public static BytecodeChunk ParseChunk(BytecodeReader chunkReader, BytecodeContainer container)
+		public static BytecodeChunk ParseChunk(BytecodeReader chunkReader, BytecodeContainer container, ProgramType programType)
 		{
 			// Type of chunk this is.
 			uint fourCc = chunkReader.ReadUInt32();
@@ -63,8 +64,8 @@ namespace SlimShader.Chunks
 				case ChunkType.Osgn:
 				case ChunkType.Osg5:
 				case ChunkType.Pcsg:
-					chunk = InputOutputSignatureChunk.Parse(chunkContentReader, chunkType,
-						container.ResourceDefinition.Target.ProgramType);
+                    chunk = InputOutputSignatureChunk.Parse(chunkContentReader, chunkType, programType);
+                    //container.ResourceDefinition.Target.ProgramType);
 					break;
 				case ChunkType.Rdef:
 					chunk = ResourceDefinitionChunk.Parse(chunkContentReader);

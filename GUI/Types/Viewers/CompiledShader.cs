@@ -449,12 +449,36 @@ namespace GUI.Types.Viewers
                         {
                             Text = gpuSourceTabTitle
                         };
+                        var resTabs = new TabControl
+                        {
+                            Dock = DockStyle.Fill,
+                        };
+                        gpuSourceTab.Controls.Add(resTabs);
 
+                        var sourceBvTab = new TabPage("Source");
                         var sourceBv = new System.ComponentModel.Design.ByteViewer
                         {
                             Dock = DockStyle.Fill,
                         };
-                        gpuSourceTab.Controls.Add(sourceBv);
+                        sourceBvTab.Controls.Add(sourceBv);
+                        resTabs.Controls.Add(sourceBvTab);
+
+                        var programType = shaderFile.VcsProgramType switch
+                        {
+                            VcsProgramType.PixelShader => SlimShader.Chunks.Common.ProgramType.PixelShader,
+                            VcsProgramType.VertexShader => SlimShader.Chunks.Common.ProgramType.VertexShader,
+                            VcsProgramType.GeometryShader => SlimShader.Chunks.Common.ProgramType.GeometryShader,
+                            _ => throw new NotImplementedException(),
+                        };
+
+                        var bytecodeContainer = SlimShader.BytecodeContainer.Parse(gpuSource.Sourcebytes, programType);
+
+                        // text
+                        var textTab = new TabPage("DXBC");
+                        var textBox = new CodeTextBox(bytecodeContainer.ToString().ReplaceLineEndings());
+                        textTab.Controls.Add(textBox);
+                        resTabs.TabPages.Add(textTab);
+                        resTabs.SelectedTab = textTab;
 
                         Program.MainForm.Invoke((MethodInvoker)(() =>
                         {
