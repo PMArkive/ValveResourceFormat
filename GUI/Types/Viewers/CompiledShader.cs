@@ -10,6 +10,7 @@ using GUI.Controls;
 using GUI.Utils;
 using ValveResourceFormat.CompiledShader;
 using ValveResourceFormat.IO;
+using Vortice.SPIRV;
 using Vortice.SpirvCross;
 using static ValveResourceFormat.CompiledShader.ShaderUtilHelpers;
 using VrfPackage = SteamDatabase.ValvePak.Package;
@@ -77,7 +78,7 @@ namespace GUI.Types.Viewers
         private ShaderCollection shaderCollection;
 
         public static string SpvToHlsl(VulkanSource v, ShaderCollection c, VcsProgramType s, long z, long d)
-            => AttemptSpirvReflection(v, c, s, z, d, spvc_backend.SPVC_BACKEND_HLSL);
+            => AttemptSpirvReflection(v, c, s, z, (int)d, spvc_backend.SPVC_BACKEND_HLSL);
 
         public TabPage Create(VrfGuiContext vrfGuiContext, byte[] input)
         {
@@ -520,7 +521,7 @@ namespace GUI.Types.Viewers
 
                         // text
                         var reflectedSource = AttemptSpirvReflection(vulkanSource, shaderCollection, shaderFile.VcsProgramType,
-                            zframeFile.ZframeId, 0, spvc_backend.SPVC_BACKEND_GLSL);
+                            zframeFile.ZframeId, gpuSourceId, spvc_backend.SPVC_BACKEND_GLSL);
 
                         var textTab = new TabPage("SPIR-V");
                         var textBox = new CodeTextBox(reflectedSource);
@@ -547,10 +548,8 @@ namespace GUI.Types.Viewers
             return gpuSourceTab;
         }
 
-#pragma warning disable IDE0060 // Remove unused parameter - TODO: these parameters are used in the `spirvcross` branch
         public static string AttemptSpirvReflection(VulkanSource vulkanSource, ShaderCollection vcsFiles, VcsProgramType stage,
-            long zFrameId, long dynamicId, spvc_backend backend)
-#pragma warning restore IDE0060 // Remove unused parameter
+            long zFrameId, int dynamicId, spvc_backend backend)
         {
             SpirvCrossApi.spvc_context_create(out var context).CheckResult();
 
@@ -576,6 +575,15 @@ namespace GUI.Types.Viewers
                 }
 
                 SpirvCrossApi.spvc_compiler_install_compiler_options(compiler, options);
+
+                // name variables based on reflection data from VCS
+                {
+                    SpirvCrossApi.spvc_compiler_create_shader_resources(compiler, out var resources).CheckResult();
+
+                    //Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
+                    Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
+                    //Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_STORAGE_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
+                }
 
                 SpirvCrossApi.spvc_compiler_compile(compiler, out var code).CheckResult();
 
@@ -606,6 +614,50 @@ namespace GUI.Types.Viewers
             }
 
             return buffer.ToString();
+        }
+
+        //static int samplerStartingPoint = 70;
+        static int textureStartingPoint = 90;
+        private static unsafe void Rename(spvc_compiler compiler, spvc_resources resources, spvc_resource_type resourceType,
+            ShaderCollection vcsFiles, VcsProgramType stage, long zFrameId, int dynamicId)
+        {
+            var shader = vcsFiles.Get(stage);
+            var writeSequence = shader.ZFrameCache.Get(zFrameId).DataBlocks[dynamicId];
+
+            SpirvCrossApi.spvc_resources_get_resource_list_for_type(resources, resourceType, out var outResources, out var outResourceCount).CheckResult();
+            for (nuint i = 0; i < outResourceCount; i++)
+            {
+                spvc_reflected_resource resource = outResources[i];
+
+                var location = (int)SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Location);
+                var index = SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Index);
+                var binding = SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Binding);
+
+                var name = resourceType switch
+                {
+                    spvc_resource_type.SPVC_RESOURCE_TYPE_SEPARATE_IMAGE
+                    or spvc_resource_type.SPVC_RESOURCE_TYPE_SAMPLED_IMAGE
+                    or spvc_resource_type.SPVC_RESOURCE_TYPE_STORAGE_IMAGE
+                        => GetNameForSampler(shader, writeSequence, binding),
+
+                    _ => string.Empty,
+                };
+
+                if (string.IsNullOrEmpty(name))
+                {
+                    continue;
+                }
+
+                SpirvCrossApi.spvc_compiler_set_name(compiler, resource.id, name);
+            }
+        }
+
+        private static unsafe string GetNameForSampler(ShaderFile shader, ZDataBlock writeSequence, uint image_binding)
+        {
+            return writeSequence.Segment1
+                .Select<WriteSeqField, (WriteSeqField Field, ParamBlock Param)>(f => (f, shader.ParamBlocks[f.ParamId]))
+                .Where(fp => fp.Param.VfxType is Vfx.Type.Sampler1D or Vfx.Type.Sampler2D or Vfx.Type.Sampler3D or Vfx.Type.SamplerCube or Vfx.Type.SamplerCubeArray or Vfx.Type.Sampler2DArray or Vfx.Type.Sampler1DArray or Vfx.Type.Sampler3DArray)
+                .FirstOrDefault(fp => fp.Field.Dest == image_binding - textureStartingPoint).Param?.Name ?? "undetermined";
         }
     }
 }
