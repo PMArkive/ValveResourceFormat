@@ -13,6 +13,7 @@
     <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
     <StartupObject>GUI.Program</StartupObject>
     <AssemblyName>Source2Viewer</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FCTB" Version="2.16.24">
