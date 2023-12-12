@@ -625,7 +625,8 @@ namespace GUI.Types.Viewers
             ShaderCollection vcsFiles, VcsProgramType stage, long zFrameId, int dynamicId)
         {
             var shader = vcsFiles.Get(stage);
-            var writeSequence = shader.ZFrameCache.Get(zFrameId).DataBlocks[dynamicId];
+            var writeSeqBlockId = shader.ZFrameCache.Get(zFrameId).EndBlocks[dynamicId].BlockIdRef;
+            var writeSequence = shader.ZFrameCache.Get(zFrameId).DataBlocks[writeSeqBlockId];
 
             SpirvCrossApi.spvc_resources_get_resource_list_for_type(resources, resourceType, out var outResources, out var outResourceCount).CheckResult();
             Span<spvc_buffer_range> bufferRanges = stackalloc spvc_buffer_range[256];
