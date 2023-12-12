@@ -12,6 +12,7 @@ using ValveResourceFormat.CompiledShader;
 using ValveResourceFormat.IO;
 using Vortice.SPIRV;
 using Vortice.SpirvCross;
+using SpirvCrossUtils = Vortice.SpirvCross.Utils;
 using static ValveResourceFormat.CompiledShader.ShaderUtilHelpers;
 using VrfPackage = SteamDatabase.ValvePak.Package;
 
@@ -627,6 +628,8 @@ namespace GUI.Types.Viewers
             var writeSequence = shader.ZFrameCache.Get(zFrameId).DataBlocks[dynamicId];
 
             SpirvCrossApi.spvc_resources_get_resource_list_for_type(resources, resourceType, out var outResources, out var outResourceCount).CheckResult();
+            Span<spvc_buffer_range> bufferRanges = stackalloc spvc_buffer_range[256];
+
             for (nuint i = 0; i < outResourceCount; i++)
             {
                 spvc_reflected_resource resource = outResources[i];
@@ -634,6 +637,9 @@ namespace GUI.Types.Viewers
                 var location = (int)SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Location);
                 var index = SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Index);
                 var binding = SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.Binding);
+                var set = SpirvCrossApi.spvc_compiler_get_decoration(compiler, resource.id, SpvDecoration.DescriptorSet);
+
+                var isGlobalBuffer = resourceType == spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER && binding == 0 && set == 0;
 
                 var name = resourceType switch
                 {
@@ -642,7 +648,7 @@ namespace GUI.Types.Viewers
                     or spvc_resource_type.SPVC_RESOURCE_TYPE_STORAGE_IMAGE
                         => GetNameForSampler(shader, writeSequence, binding),
 
-                    spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER => GetNameForBuffer(shader, writeSequence, binding),
+                    spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER => isGlobalBuffer ? "_Globals_" : GetNameForBuffer(shader, writeSequence, binding),
 
                     _ => string.Empty,
                 };
@@ -652,21 +658,24 @@ namespace GUI.Types.Viewers
                     continue;
                 }
 
-                SpirvCrossApi.spvc_compiler_set_name(compiler, resource.id, name);
+                SpirvCrossApi.spvc_compiler_set_name(compiler, resource.base_type_id, name);
 
                 if (resourceType == spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER)
                 {
                     //  get buffer members
-                    Span<spvc_buffer_range> bufferRanges = stackalloc spvc_buffer_range[256];
                     nuint bufferRangeCount = 0;
+#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
                     SpirvCrossApi.spvc_compiler_get_active_buffer_ranges(compiler, resource.id, (spvc_buffer_range*)&bufferRanges, &bufferRangeCount).CheckResult();
+#pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
                     for (int j = 0; j < (int)bufferRangeCount; j++)
                     {
                         var bufferRange = bufferRanges[j];
 
-                        //var memberName = GetBufferMemberName(shader, writeSequence, offset: (uint)bufferRange.offset / 4);
-                        var memberName = GetBufferMemberName(shader, writeSequence, index: (int)bufferRange.index);
+                        //var memberName = GetBufferMemberName(shader, writeSequence, offset: (int)bufferRange.offset / 4);
+                        var memberName = isGlobalBuffer
+                            ? GetGlobalBufferMemberName(shader, writeSequence, (int)bufferRange.offset / 4)
+                            : GetBufferMemberName(shader, writeSequence, index: (int)bufferRange.index);
 
                         if (string.IsNullOrEmpty(memberName))
                         {
@@ -675,7 +684,7 @@ namespace GUI.Types.Viewers
 
                         fixed (sbyte* memberNameBytes = memberName.GetUtf8Span())
                         {
-                            SpirvCrossApi.spvc_compiler_set_member_name(compiler, resource.id, bufferRange.index, memberNameBytes);
+                            SpirvCrossApi.spvc_compiler_set_member_name(compiler, resource.base_type_id, bufferRange.index, memberNameBytes);
                         }
                     }
                 }
@@ -720,6 +729,15 @@ namespace GUI.Types.Viewers
             {
                 return "undetermined";
             }
+        }
+
+        private static string GetGlobalBufferMemberName(ShaderFile shader, ZDataBlock writeSequence, int offset)
+        {
+            var globalBufferParameters = writeSequence.Globals
+                .Select<WriteSeqField, (WriteSeqField Field, ParamBlock Param)>(f => (f, shader.ParamBlocks[f.ParamId]))
+                .ToList();
+
+            return globalBufferParameters.FirstOrDefault(fp => fp.Field.Dest == offset).Param?.Name ?? "undetermined";
         }
     }
 }
