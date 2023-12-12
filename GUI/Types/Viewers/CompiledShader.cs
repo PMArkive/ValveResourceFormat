@@ -567,7 +567,7 @@ namespace GUI.Types.Viewers
                     SpirvCrossApi.spvc_compiler_options_set_uint(options, spvc_compiler_option.SPVC_COMPILER_OPTION_GLSL_VERSION, 460);
                     SpirvCrossApi.spvc_compiler_options_set_bool(options, spvc_compiler_option.SPVC_COMPILER_OPTION_GLSL_ES, SpirvCrossApi.SPVC_FALSE);
                     SpirvCrossApi.spvc_compiler_options_set_bool(options, spvc_compiler_option.SPVC_COMPILER_OPTION_GLSL_VULKAN_SEMANTICS, SpirvCrossApi.SPVC_TRUE);
-                    SpirvCrossApi.spvc_compiler_options_set_bool(options, spvc_compiler_option.SPVC_COMPILER_OPTION_GLSL_EMIT_UNIFORM_BUFFER_AS_PLAIN_UNIFORMS, SpirvCrossApi.SPVC_TRUE);
+                    //SpirvCrossApi.spvc_compiler_options_set_bool(options, spvc_compiler_option.SPVC_COMPILER_OPTION_GLSL_EMIT_UNIFORM_BUFFER_AS_PLAIN_UNIFORMS, SpirvCrossApi.SPVC_TRUE);
                 }
                 else if (backend == spvc_backend.SPVC_BACKEND_HLSL)
                 {
@@ -583,6 +583,8 @@ namespace GUI.Types.Viewers
                     //Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
                     Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
                     //Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_STORAGE_IMAGE, vcsFiles, stage, zFrameId, dynamicId);
+                    Rename(compiler, resources, spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, vcsFiles, stage, zFrameId, dynamicId);
+
                 }
 
                 SpirvCrossApi.spvc_compiler_compile(compiler, out var code).CheckResult();
@@ -640,6 +642,8 @@ namespace GUI.Types.Viewers
                     or spvc_resource_type.SPVC_RESOURCE_TYPE_STORAGE_IMAGE
                         => GetNameForSampler(shader, writeSequence, binding),
 
+                    spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER => GetNameForBuffer(shader, writeSequence, binding),
+
                     _ => string.Empty,
                 };
 
@@ -649,15 +653,73 @@ namespace GUI.Types.Viewers
                 }
 
                 SpirvCrossApi.spvc_compiler_set_name(compiler, resource.id, name);
+
+                if (resourceType == spvc_resource_type.SPVC_RESOURCE_TYPE_UNIFORM_BUFFER)
+                {
+                    //  get buffer members
+                    Span<spvc_buffer_range> bufferRanges = stackalloc spvc_buffer_range[256];
+                    nuint bufferRangeCount = 0;
+                    SpirvCrossApi.spvc_compiler_get_active_buffer_ranges(compiler, resource.id, (spvc_buffer_range*)&bufferRanges, &bufferRangeCount).CheckResult();
+
+                    for (int j = 0; j < (int)bufferRangeCount; j++)
+                    {
+                        var bufferRange = bufferRanges[j];
+
+                        //var memberName = GetBufferMemberName(shader, writeSequence, offset: (uint)bufferRange.offset / 4);
+                        var memberName = GetBufferMemberName(shader, writeSequence, index: (int)bufferRange.index);
+
+                        if (string.IsNullOrEmpty(memberName))
+                        {
+                            continue;
+                        }
+
+                        fixed (sbyte* memberNameBytes = memberName.GetUtf8Span())
+                        {
+                            SpirvCrossApi.spvc_compiler_set_member_name(compiler, resource.id, bufferRange.index, memberNameBytes);
+                        }
+                    }
+                }
             }
         }
 
-        private static unsafe string GetNameForSampler(ShaderFile shader, ZDataBlock writeSequence, uint image_binding)
+        private static string GetNameForSampler(ShaderFile shader, ZDataBlock writeSequence, uint image_binding)
         {
             return writeSequence.Segment1
                 .Select<WriteSeqField, (WriteSeqField Field, ParamBlock Param)>(f => (f, shader.ParamBlocks[f.ParamId]))
                 .Where(fp => fp.Param.VfxType is Vfx.Type.Sampler1D or Vfx.Type.Sampler2D or Vfx.Type.Sampler3D or Vfx.Type.SamplerCube or Vfx.Type.SamplerCubeArray or Vfx.Type.Sampler2DArray or Vfx.Type.Sampler1DArray or Vfx.Type.Sampler3DArray)
                 .FirstOrDefault(fp => fp.Field.Dest == image_binding - textureStartingPoint).Param?.Name ?? "undetermined";
+        }
+
+        private static string GetNameForBuffer(ShaderFile shader, ZDataBlock writeSequence, uint binding)
+        {
+            return writeSequence.Segment1
+                .Select<WriteSeqField, (WriteSeqField Field, ParamBlock Param)>(f => (f, shader.ParamBlocks[f.ParamId]))
+                .Where(fp => fp.Param.VfxType is Vfx.Type.Cbuffer)
+                .FirstOrDefault(fp => fp.Field.Dest == binding).Param?.Name ?? "undetermined";
+        }
+
+        // by offset
+        // https://github.com/KhronosGroup/SPIRV-Cross/blob/f349c91274b91c1a7c173f2df70ec53080076191/spirv_hlsl.cpp#L2616
+        private static string GetBufferMemberName(ShaderFile shader, ZDataBlock writeSequence, int index = -1, int offset = -1)
+        {
+            var bufferParams = writeSequence.Segment1
+                .Select<WriteSeqField, (WriteSeqField Field, ParamBlock Param)>(f => (f, shader.ParamBlocks[f.ParamId]))
+                .Where(fp => fp.Param.VfxType is Vfx.Type.Cbuffer)
+                .Select(fp => shader.BufferBlocks[fp.Param.Id])
+                .First().BufferParams;
+
+            if (index != -1)
+            {
+                return bufferParams[index].Name;
+            }
+            else if (offset != -1)
+            {
+                return bufferParams.First(p => p.Offset == offset).Name;
+            }
+            else
+            {
+                return "undetermined";
+            }
         }
     }
 }
