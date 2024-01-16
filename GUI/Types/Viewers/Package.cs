@@ -12,6 +12,7 @@ using SteamDatabase.ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.Blocks.ResourceEditInfoStructs;
+using ValveResourceFormat.IO;
 
 namespace GUI.Types.Viewers
 {
@@ -119,7 +120,7 @@ namespace GUI.Types.Viewers
 
             TreeView.BeginUpdate();
 
-            var resourceEntries = new List<PackageEntry>();
+            var resourceEntries = new List<string>();
 
             // TODO: This is not adding to the selected folder, but to root
             foreach (var file in files)
@@ -146,7 +147,7 @@ namespace GUI.Types.Viewers
 
                     if (Resource.IsAccepted(magicResourceVersion) && name.EndsWith("_c", StringComparison.Ordinal))
                     {
-                        resourceEntries.Add(entry);
+                        resourceEntries.Add(file);
                     }
                 }
             }
@@ -161,7 +162,72 @@ namespace GUI.Types.Viewers
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                MessageBox.Show("TODO :)");
+                AddExternalReferences(resourceEntries);
+            }
+        }
+
+        private void AddExternalReferences(List<string> resourceEntries)
+        {
+            var childEntries = new List<string>();
+
+            foreach (var file in resourceEntries)
+            {
+                using var resource = new ValveResourceFormat.Resource();
+                resource.Read(file);
+
+                if (resource.ExternalReferences is null)
+                {
+                    continue;
+                }
+
+                using var loader = new GameFileLoader(null, file);
+
+                foreach (var reference in resource.ExternalReferences.ResourceRefInfoList)
+                {
+                    var name = reference.Name;
+
+                    if (name.StartsWith("_bakeresourcecache", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var ext = Path.GetExtension(name);
+
+                    if (ext.StartsWith(".v", StringComparison.Ordinal))
+                    {
+                        name += "_c";
+                    }
+
+                    // TODO: Fix paths to root against the addon folder
+                    var res = loader.FindFile(name);
+
+                    if (res.PathOnDisk == null)
+                    {
+                        if (res.PackageEntry != null)
+                        {
+                            Log.Info(nameof(Package), $"Found {name}, but it was in a VPK, so it was ignored.");
+                        }
+
+                        continue;
+                    }
+
+                    Log.Debug(nameof(Package), $"Add {res.PathOnDisk}");
+
+                    if (name.EndsWith("_c", StringComparison.Ordinal))
+                    {
+                        childEntries.Add(name);
+                    }
+
+                    // TODO: prefix
+                    var data = File.ReadAllBytes(file);
+                    var entry = VrfGuiContext.CurrentPackage.AddFile(name, data);
+                    TreeView.AddFileNode(entry);
+                }
+            }
+
+            if (childEntries.Count > 0)
+            {
+                AddExternalReferences(childEntries);
             }
         }
 
