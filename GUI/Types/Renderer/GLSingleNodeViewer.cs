@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Windows.Forms;
+using GUI.Controls;
 using GUI.Utils;
 using OpenTK.Graphics.OpenGL;
 using SkiaSharp;
@@ -12,6 +14,12 @@ namespace GUI.Types.Renderer
     class GLSingleNodeViewer : GLSceneViewer, IDisposable
     {
         private Framebuffer SaveAsFbo;
+        private GLViewerTrackBarControl sunYawTrackbar;
+        private GLViewerTrackBarControl sunPitchTrackbar;
+        private GLViewerTrackBarControl sunRollTrackbar;
+        private float SunPitch;
+        private float SunYaw = 200f;
+        private float SunRoll = 45f;
 
         public GLSingleNodeViewer(VrfGuiContext guiContext)
             : base(guiContext, Frustum.CreateEmpty())
@@ -24,6 +32,10 @@ namespace GUI.Types.Renderer
             if (disposing)
             {
                 SaveAsFbo?.Dispose();
+
+                sunYawTrackbar.Dispose();
+                sunPitchTrackbar.Dispose();
+                sunRollTrackbar.Dispose();
             }
 
             base.Dispose(disposing);
@@ -44,6 +56,43 @@ namespace GUI.Types.Renderer
         protected override void LoadScene()
         {
             MainFramebuffer.ChangeFormat(new(PixelInternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedInt), MainFramebuffer.DepthFormat);
+        }
+
+        public override void PostSceneLoad()
+        {
+            base.PostSceneLoad();
+
+            AddControl(new Label
+            {
+                Text = "Sun Angle",
+            });
+
+            sunYawTrackbar = AddTrackBar(value =>
+            {
+                SunYaw = value;
+            });
+            sunYawTrackbar.TrackBar.TickFrequency = 5;
+            sunYawTrackbar.TrackBar.Minimum = 0;
+            sunYawTrackbar.TrackBar.Maximum = 360;
+            sunYawTrackbar.TrackBar.Value = (int)SunYaw;
+
+            sunPitchTrackbar = AddTrackBar(value =>
+            {
+                SunPitch = value;
+            });
+            sunPitchTrackbar.TrackBar.TickFrequency = 5;
+            sunPitchTrackbar.TrackBar.Minimum = 0;
+            sunPitchTrackbar.TrackBar.Maximum = 360;
+            sunPitchTrackbar.TrackBar.Value = (int)SunPitch;
+
+            sunRollTrackbar = AddTrackBar(value =>
+            {
+                SunRoll = value;
+            });
+            sunRollTrackbar.TrackBar.TickFrequency = 5;
+            sunRollTrackbar.TrackBar.Minimum = 0;
+            sunRollTrackbar.TrackBar.Maximum = 360;
+            sunRollTrackbar.TrackBar.Value = (int)SunRoll;
         }
 
         private void LoadDefaultEnviromentMap()
@@ -72,7 +121,7 @@ namespace GUI.Types.Renderer
 
         protected override void OnPaint(object sender, RenderEventArgs e)
         {
-            Scene.LightingInfo.LightingData.SunLightPosition = Camera.ViewProjectionMatrix;
+            Scene.LightingInfo.LightingData.SunLightPosition = Matrix4x4.CreateFromYawPitchRoll(SunYaw * MathF.PI / 180f, SunPitch * MathF.PI / 180f, SunRoll * MathF.PI / 180f);
             Scene.LightingInfo.LightingData.SunLightColor = Vector4.One;
 
             base.OnPaint(sender, e);
