@@ -174,7 +174,7 @@ public sealed class MaterialExtract
 
     public string ToValveMaterial()
     {
-        var root = new KVObject("Layer0", [])
+        var root = new KVObject("Layer0", new List<KVValue>())
         {
             new KVObject("shader", material.ShaderName)
         };
@@ -194,7 +194,7 @@ public sealed class MaterialExtract
             root.Add(new KVObject(key, $"[{value.X:N6} {value.Y:N6} {value.Z:N6} {value.W:N6}]"));
         }
 
-        var originalTextures = new KVObject("Compiled Textures", []);
+        var originalTextures = new KVObject("Compiled Textures", new List<KVValue>());
         foreach (var (key, value) in material.TextureParams)
         {
             foreach (var unpackInfo in GetTextureUnpackInfos(key, value, false, true))
@@ -209,7 +209,7 @@ public sealed class MaterialExtract
 
         if (material.DynamicExpressions.Count > 0)
         {
-            var dynamicExpressionsNode = new KVObject("DynamicParams", []);
+            var dynamicExpressionsNode = new KVObject("DynamicParams", new List<KVValue>());
             root.Add(dynamicExpressionsNode);
             foreach (var (key, value) in material.DynamicExpressions)
             {

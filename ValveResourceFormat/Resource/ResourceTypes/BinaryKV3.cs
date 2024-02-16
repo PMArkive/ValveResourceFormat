@@ -3,10 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using K4os.Compression.LZ4;
 using K4os.Compression.LZ4.Encoders;
+using ValveKeyValue;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.Compression;
 using ValveResourceFormat.Serialization.KeyValues;
 using ValveResourceFormat.Utils;
+using KVFlag = ValveKeyValue.KVFlag;
+using KVObject = ValveKeyValue.KVObject;
+using KVValue = ValveKeyValue.KVValue;
 
 namespace ValveResourceFormat.ResourceTypes
 {
@@ -29,7 +33,7 @@ namespace ValveResourceFormat.ResourceTypes
 
         public static bool IsBinaryKV3(uint magic) => magic is MAGIC or MAGIC2 or MAGIC3 or MAGIC4 or MAGIC5;
 
-        public KVObject Data { get; private set; }
+        public ValveResourceFormat.Serialization.KeyValues.KVObject Data { get; private set; }
         public Guid Encoding { get; private set; }
         public Guid Format { get; private set; }
 
@@ -158,7 +162,7 @@ namespace ValveResourceFormat.ResourceTypes
                     stringArray[i] = outRead.ReadNullTermString(System.Text.Encoding.UTF8);
                 }
 
-                Data = ParseBinaryKV3(outRead, null, true);
+                Data = ParseBinaryKV3TempConvert(outRead, null, true);
 
                 var trailer = outRead.ReadUInt32();
                 if (trailer != 0xFFFFFFFF)
@@ -255,7 +259,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3(outRead, null, true);
+                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
                 }
                 finally
                 {
@@ -444,7 +448,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3(outRead, null, true);
+                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
 
                     return;
                 }
@@ -531,7 +535,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3(outRead, null, true);
+                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
                 }
                 finally
                 {
@@ -637,6 +641,38 @@ namespace ValveResourceFormat.ResourceTypes
             return ((KVType)databyte, flagInfo);
         }
 
+        private Serialization.KeyValues.KVObject ParseBinaryKV3TempConvert(BinaryReader reader, KVObject parent, bool inArray = false)
+        {
+            string name = null;
+            if (!inArray)
+            {
+                var stringID = reader.ReadInt32();
+                name = (stringID == -1) ? string.Empty : stringArray[stringID];
+            }
+
+            var (datatype, flagInfo) = ReadType(reader);
+
+            var root = ReadBinaryValue(name, datatype, flagInfo, reader, parent);
+
+            //return ConvertTemp(root);
+            return new Serialization.KeyValues.KVObject("todo");
+        }
+
+        private static Serialization.KeyValues.KVObject ConvertTemp(KVObject obj)
+        {
+            var c = new Serialization.KeyValues.KVObject(obj.Name);
+
+            if (obj is IEnumerable<KVObject> objList)
+            {
+                foreach (var o in objList)
+                {
+                    c.AddProperty(o.Name, new Serialization.KeyValues.KVValue(KVType.NULL, (object)o.Value));
+                }
+            }
+
+            return c;
+        }
+
         private KVObject ParseBinaryKV3(BinaryReader reader, KVObject parent, bool inArray = false)
         {
             string name = null;
@@ -651,6 +687,13 @@ namespace ValveResourceFormat.ResourceTypes
             return ReadBinaryValue(name, datatype, flagInfo, reader, parent);
         }
 
+        private static KVObject CreateObj(string name, KVValue value, KVFlag flag)
+        {
+            var obj = new KVObject(name, value);
+            obj.Value.Flag = flag;
+            return obj;
+        }
+
         private KVObject ReadBinaryValue(string name, KVType datatype, KVFlag flagInfo, BinaryReader reader, KVObject parent)
         {
             var currentOffset = reader.BaseStream.Position;
@@ -658,7 +701,8 @@ namespace ValveResourceFormat.ResourceTypes
             switch (datatype)
             {
                 case KVType.NULL:
-                    parent.AddProperty(name, MakeValue(datatype, null, flagInfo));
+                    //parent.Add(CreateObj(name, (string)null, flagInfo));
+                    parent.Add(CreateObj(name, string.Empty, flagInfo)); // TODO
                     break;
                 case KVType.BOOLEAN:
                     if (currentBinaryBytesOffset > -1)
@@ -666,7 +710,7 @@ namespace ValveResourceFormat.ResourceTypes
                         reader.BaseStream.Position = currentBinaryBytesOffset;
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadBoolean(), flagInfo));
+                    parent.Add(CreateObj(name, reader.ReadBoolean(), flagInfo));
 
                     if (currentBinaryBytesOffset > -1)
                     {
@@ -676,16 +720,16 @@ namespace ValveResourceFormat.ResourceTypes
 
                     break;
                 case KVType.BOOLEAN_TRUE:
-                    parent.AddProperty(name, MakeValue(datatype, true, flagInfo));
+                    parent.Add(CreateObj(name, true, flagInfo));
                     break;
                 case KVType.BOOLEAN_FALSE:
-                    parent.AddProperty(name, MakeValue(datatype, false, flagInfo));
+                    parent.Add(CreateObj(name, false, flagInfo));
                     break;
                 case KVType.INT64_ZERO:
-                    parent.AddProperty(name, MakeValue(datatype, 0L, flagInfo));
+                    parent.Add(CreateObj(name, 0L, flagInfo));
                     break;
                 case KVType.INT64_ONE:
-                    parent.AddProperty(name, MakeValue(datatype, 1L, flagInfo));
+                    parent.Add(CreateObj(name, 1L, flagInfo));
                     break;
                 case KVType.INT64:
                     if (currentEightBytesOffset > 0)
@@ -693,7 +737,7 @@ namespace ValveResourceFormat.ResourceTypes
                         reader.BaseStream.Position = currentEightBytesOffset;
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadInt64(), flagInfo));
+                    parent.Add(CreateObj(name, reader.ReadInt64(), flagInfo));
 
                     if (currentEightBytesOffset > 0)
                     {
@@ -708,7 +752,7 @@ namespace ValveResourceFormat.ResourceTypes
                         reader.BaseStream.Position = currentEightBytesOffset;
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadUInt64(), flagInfo));
+                    parent.Add(CreateObj(name, reader.ReadUInt64(), flagInfo));
 
                     if (currentEightBytesOffset > 0)
                     {
@@ -718,10 +762,10 @@ namespace ValveResourceFormat.ResourceTypes
 
                     break;
                 case KVType.INT32:
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadInt32(), flagInfo));
+                    parent.Add(CreateObj(name, reader.ReadInt32(), flagInfo));
                     break;
                 case KVType.UINT32:
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadUInt32(), flagInfo));
+                    parent.Add(CreateObj(name, (ulong)reader.ReadUInt32(), flagInfo)); // TODO
                     break;
                 case KVType.DOUBLE:
                     if (currentEightBytesOffset > 0)
@@ -729,7 +773,7 @@ namespace ValveResourceFormat.ResourceTypes
                         reader.BaseStream.Position = currentEightBytesOffset;
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadDouble(), flagInfo));
+                    parent.Add(CreateObj(name, (float)reader.ReadDouble(), flagInfo)); // TODO
 
                     if (currentEightBytesOffset > 0)
                     {
@@ -739,15 +783,15 @@ namespace ValveResourceFormat.ResourceTypes
 
                     break;
                 case KVType.DOUBLE_ZERO:
-                    parent.AddProperty(name, MakeValue(datatype, 0.0D, flagInfo));
+                    parent.Add(CreateObj(name, 0f, flagInfo)); // TODO
                     break;
                 case KVType.DOUBLE_ONE:
-                    parent.AddProperty(name, MakeValue(datatype, 1.0D, flagInfo));
+                    parent.Add(CreateObj(name, 1f, flagInfo)); // TODO
                     break;
                 case KVType.STRING:
                 case KVType.STRING_MULTI:
                     var id = reader.ReadInt32();
-                    parent.AddProperty(name, MakeValue(datatype, id == -1 ? string.Empty : stringArray[id], flagInfo));
+                    parent.Add(CreateObj(name, id == -1 ? string.Empty : stringArray[id], flagInfo));
                     break;
                 case KVType.BINARY_BLOB:
                     if (uncompressedBlocks != null)
@@ -755,7 +799,7 @@ namespace ValveResourceFormat.ResourceTypes
                         var blockLength = uncompressedBlockLengthArray[currentCompressedBlockIndex++];
                         var output = uncompressedBlocks[uncompressedBlockOffset..(uncompressedBlockOffset + blockLength)].ToArray();
                         uncompressedBlockOffset += blockLength;
-                        parent.AddProperty(name, MakeValue(datatype, output, flagInfo));
+                        parent.Add(CreateObj(name, new KVBinaryBlob(output), flagInfo));
                         break;
                     }
 
@@ -766,7 +810,7 @@ namespace ValveResourceFormat.ResourceTypes
                         reader.BaseStream.Position = currentBinaryBytesOffset;
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, reader.ReadBytes(length), flagInfo));
+                    parent.Add(CreateObj(name, new KVBinaryBlob(reader.ReadBytes(length)), flagInfo));
 
                     if (currentBinaryBytesOffset > -1)
                     {
@@ -777,14 +821,16 @@ namespace ValveResourceFormat.ResourceTypes
                     break;
                 case KVType.ARRAY:
                     var arrayLength = reader.ReadInt32();
-                    var array = new KVObject(name, isArray: true, capacity: arrayLength);
+                    var array = new KVObject(name, new List<KVObject>());
 
                     for (var i = 0; i < arrayLength; i++)
                     {
                         ParseBinaryKV3(reader, array, true);
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, array, flagInfo));
+                    //new KVArrayValue()
+
+                    parent.Add(array);
                     break;
                 case KVType.ARRAY_TYPED:
                 case KVType.ARRAY_TYPE_BYTE_LENGTH:
@@ -805,18 +851,19 @@ namespace ValveResourceFormat.ResourceTypes
                     }
 
                     var (subType, subFlagInfo) = ReadType(reader);
-                    var typedArray = new KVObject(name, isArray: true, capacity: typeArrayLength);
+                    //var typedArray = CreateObj(name, new KVArrayValue(), flagInfo);
+                    var typedArray = new KVObject(name, new List<KVObject>());
 
                     for (var i = 0; i < typeArrayLength; i++)
                     {
                         ReadBinaryValue(name, subType, subFlagInfo, reader, typedArray);
                     }
 
-                    parent.AddProperty(name, MakeValue(datatype, typedArray, flagInfo));
+                    parent.Add(typedArray);
                     break;
                 case KVType.OBJECT:
                     var objectLength = reader.ReadInt32();
-                    var newObject = new KVObject(name, isArray: false, capacity: objectLength);
+                    var newObject = new KVObject(name, new List<KVObject>());
 
                     for (var i = 0; i < objectLength; i++)
                     {
@@ -829,12 +876,12 @@ namespace ValveResourceFormat.ResourceTypes
                     }
                     else
                     {
-                        parent.AddProperty(name, MakeValue(datatype, newObject, flagInfo));
+                        parent.Add(newObject);
                     }
 
                     break;
                 case KVType.FLOAT:
-                    parent.AddProperty(name, MakeValue(datatype, (double)reader.ReadSingle(), flagInfo));
+                    parent.Add(CreateObj(name, reader.ReadSingle(), flagInfo));
                     break;
                 // TODO: 20, 21 - using unknown buffer, likely related to the new ints that were added
                 // TODO: 22, 23 - reading from currentBinaryBytesOffset
@@ -842,7 +889,7 @@ namespace ValveResourceFormat.ResourceTypes
                 case KVType.INT32_AS_BYTE:
                     reader.BaseStream.Position = currentBinaryBytesOffset;
 
-                    parent.AddProperty(name, MakeValue(datatype, (int)reader.ReadByte(), flagInfo));
+                    parent.Add(CreateObj(name, (int)reader.ReadByte(), flagInfo));
 
                     currentBinaryBytesOffset++;
                     reader.BaseStream.Position = currentOffset;
