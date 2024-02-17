@@ -11,7 +11,7 @@ namespace ValveResourceFormat.Serialization.KeyValues
         // March 2023: There are more types available in the S2 binaries, but they should not be persisted.
     }
 
-    public class KVFlaggedValue : KVValue
+    public class KVFlaggedValue : KVValueOld
     {
         public KVFlag Flag { get; private set; }
 

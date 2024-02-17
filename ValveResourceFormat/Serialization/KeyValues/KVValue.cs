@@ -39,12 +39,12 @@ namespace ValveResourceFormat.Serialization.KeyValues
     /// <summary>
     /// Class to hold type + value
     /// </summary>
-    public class KVValue
+    public class KVValueOld
     {
         public KVType Type { get; private set; }
         public object Value { get; private set; }
 
-        public KVValue(KVType type, object value)
+        public KVValueOld(KVType type, object value)
         {
             Type = type;
             Value = value;

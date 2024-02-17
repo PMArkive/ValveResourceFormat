@@ -9,28 +9,28 @@ namespace ValveResourceFormat.Serialization.KeyValues
     //Datastructure for a KV Object
     [DebuggerDisplay("{DebugRepresentation,nq}")]
     [DebuggerTypeProxy(typeof(DebugView))]
-    public class KVObject : IEnumerable<KeyValuePair<string, object>>
+    public class KVObjectOld : IEnumerable<KeyValuePair<string, object>>
     {
         public string Key { get; }
-        public Dictionary<string, KVValue> Properties { get; }
+        public Dictionary<string, KVValueOld> Properties { get; }
         public bool IsArray { get; }
         public int Count { get; private set; }
 
-        public KVObject(string name, int capacity = 0)
+        public KVObjectOld(string name, int capacity = 0)
         {
             Key = name;
-            Properties = new Dictionary<string, KVValue>(capacity);
+            Properties = new Dictionary<string, KVValueOld>(capacity);
             Count = 0;
         }
 
-        public KVObject(string name, bool isArray, int capacity = 0)
+        public KVObjectOld(string name, bool isArray, int capacity = 0)
             : this(name, capacity)
         {
             IsArray = isArray;
         }
 
         //Add a property to the structure
-        public virtual void AddProperty(string name, KVValue value)
+        public virtual void AddProperty(string name, KVValueOld value)
         {
             if (IsArray)
             {
@@ -190,7 +190,7 @@ namespace ValveResourceFormat.Serialization.KeyValues
         {
             if (Properties.TryGetValue(name, out var value))
             {
-                if (value.Type == KVType.OBJECT && value.Value is KVObject kvObject && kvObject.IsArray)
+                if (value.Type == KVType.OBJECT && value.Value is KVObjectOld kvObject && kvObject.IsArray)
                 {
                     var properties = new List<T>();
                     var index = 0;
@@ -241,14 +241,14 @@ namespace ValveResourceFormat.Serialization.KeyValues
 
         internal class DebugView
         {
-            readonly KVObject obj;
+            readonly KVObjectOld obj;
 
-            internal DebugView(KVObject obj)
+            internal DebugView(KVObjectOld obj)
             {
                 this.obj = obj;
             }
 
-            internal static string GetRepresentation(KVObject obj)
+            internal static string GetRepresentation(KVObjectOld obj)
             {
                 if (!obj.IsArray)
                 {
@@ -279,12 +279,12 @@ namespace ValveResourceFormat.Serialization.KeyValues
                 [DebuggerBrowsable(DebuggerBrowsableState.Never)]
                 readonly string ValueDebugRepresentation;
 
-                internal KeyValue(KeyValuePair<string, KVValue> keyValuePair)
+                internal KeyValue(KeyValuePair<string, KVValueOld> keyValuePair)
                 {
                     (Key, Value, Type) = (keyValuePair.Key, keyValuePair.Value.Value, keyValuePair.Value.Type);
                     ValueDebugRepresentation = Value switch
                     {
-                        KVObject kvObject => $"<{(kvObject.IsArray ? "KVArray" : "KVObject")}>",
+                        KVObjectOld kvObject => $"<{(kvObject.IsArray ? "KVArray" : "KVObject")}>",
                         _ => keyValuePair.Value.Value?.ToString() ?? "null",
                     };
                 }
@@ -297,7 +297,7 @@ namespace ValveResourceFormat.Serialization.KeyValues
 
 
             [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
-            KVValue[] Items => obj.IsArray
+            KVValueOld[] Items => obj.IsArray
                 ? [.. obj.Properties.Values]
                 : [];
         }

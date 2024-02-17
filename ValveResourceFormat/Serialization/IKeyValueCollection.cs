@@ -20,24 +20,57 @@ namespace ValveResourceFormat.Serialization
 
     public static class KVObjectExtensions
     {
-        public static KVObject GetSubCollection(this KVObject collection, string name)
-            => collection.GetProperty<KVObject>(name);
+        public static bool ContainsKey(this KVObject collection, string name)
+            => collection[name] != null;
+
+        public static bool ContainsKey(this KVValue collection, string name)
+            => collection[name] != null;
+
+        public static void AddProperty(this KVObject collection, string name, KVValue value)
+           => collection[name] = value;
+
+        public static void AddProperty(this KVObject collection, KVObject value)
+            => collection.Add(value);
+
+        public static TObject GetProperty<TObject>(this KVObject collection, string name)
+            where TObject : IConvertible
+            => (TObject)collection[name];
+
+        public static TObject GetProperty<TObject>(this KVValue collection, string name)
+            where TObject : IConvertible
+            => (TObject)collection[name];
+
+        public static KVValue GetSubCollection(this KVValue collection, string name)
+            => collection[name];
+
+        public static KVValue GetSubCollection(this KVObject collection, string name)
+            => collection[name];
+
+        public static KVValue GetSubCollection(this KVValue collection, string name)
+            => collection[name];
 
         public static T[] GetArray<T>(this KVObject collection, string name, Func<KVObject, T> mapper)
-            => collection.GetArray<KVObject>(name)
+            => ((IEnumerable<KVObject>)collection[name])
                 .Select(mapper)
                 .ToArray();
 
         public static string GetStringProperty(this KVObject collection, string name)
-           => collection.GetProperty<string>(name);
+           => (string)collection[name];
+
+        public static string GetStringProperty(this KVValue collection, string name)
+           => (string)collection[name];
 
         public static long GetIntegerProperty(this KVObject collection, string name)
-            => Convert.ToInt64(collection.GetProperty<object>(name), CultureInfo.InvariantCulture);
+            => Convert.ToInt64(collection[name], CultureInfo.InvariantCulture);
+
+        public static long GetIntegerProperty(this KVValue collection, string name)
+            => Convert.ToInt64(collection[name], CultureInfo.InvariantCulture);
 
         public static ulong GetUnsignedIntegerProperty(this KVObject collection, string name)
         {
-            var value = collection.GetProperty<object>(name);
+            var value = collection[name];
 
+            /*
             if (value is int i)
             {
                 unchecked
@@ -45,46 +78,62 @@ namespace ValveResourceFormat.Serialization
                     return (ulong)i;
                 }
             }
+            */
 
             return Convert.ToUInt64(value, CultureInfo.InvariantCulture);
         }
 
         public static int GetInt32Property(this KVObject collection, string name)
-            => Convert.ToInt32(collection.GetProperty<object>(name), CultureInfo.InvariantCulture);
+            => Convert.ToInt32(collection[name], CultureInfo.InvariantCulture);
+
+        public static int GetInt32Property(this KVValue collection, string name)
+            => Convert.ToInt32(collection[name], CultureInfo.InvariantCulture);
 
         public static uint GetUInt32Property(this KVObject collection, string name)
-            => Convert.ToUInt32(collection.GetProperty<object>(name), CultureInfo.InvariantCulture);
+            => Convert.ToUInt32(collection[name], CultureInfo.InvariantCulture);
+
+        public static uint GetUInt32Property(this KVValue collection, string name)
+            => Convert.ToUInt32(collection[name], CultureInfo.InvariantCulture);
 
         public static double GetDoubleProperty(this KVObject collection, string name)
-            => Convert.ToDouble(collection.GetProperty<object>(name), CultureInfo.InvariantCulture);
+            => Convert.ToDouble(collection[name], CultureInfo.InvariantCulture);
+
+        public static double GetDoubleProperty(this KVValue collection, string name)
+            => Convert.ToDouble(collection[name], CultureInfo.InvariantCulture);
 
         public static float GetFloatProperty(this KVObject collection, string name)
             => (float)GetDoubleProperty(collection, name);
 
+        public static float GetFloatProperty(this KVValue collection, string name)
+            => (float)GetDoubleProperty(collection, name);
+
         public static byte GetByteProperty(this KVObject collection, string name)
-            => Convert.ToByte(collection.GetProperty<object>(name), CultureInfo.InvariantCulture);
+            => Convert.ToByte(collection[name], CultureInfo.InvariantCulture);
 
         public static long[] GetIntegerArray(this KVObject collection, string name)
-            => collection.GetArray<object>(name)
+            => ((IEnumerable<KVObject>)collection[name])
                 .Select(x => Convert.ToInt64(x, CultureInfo.InvariantCulture))
                 .ToArray();
 
         public static float[] GetFloatArray(this KVObject collection, string name)
-            => collection.GetArray<object>(name)
+            => ((IEnumerable<KVObject>)collection[name])
                 .Select(x => Convert.ToSingle(x, CultureInfo.InvariantCulture))
                 .ToArray();
 
         public static ulong[] GetUnsignedIntegerArray(this KVObject collection, string name)
-            => collection.GetArray<object>(name)
+            => ((IEnumerable<KVObject>)collection[name])
                 .Select(x => Convert.ToUInt64(x, CultureInfo.InvariantCulture))
                 .ToArray();
 
         public static KVObject[] GetArray(this KVObject collection, string name)
-            => collection.GetArray<KVObject>(name);
+            => ((IEnumerable<KVObject>)collection[name]).ToArray();
 
         public static TEnum GetEnumValue<TEnum>(this KVObject collection, string name, bool normalize = false) where TEnum : Enum
         {
-            var rawValue = collection.GetProperty<object>(name);
+            throw new ArgumentException("todo");
+
+            /*
+            var rawValue = collection[name];
 
             if (rawValue is int)
             {
@@ -151,16 +200,26 @@ namespace ValveResourceFormat.Serialization
             {
                 throw new ArgumentException($"Unable to map {strValue} to a member of enum {typeof(TEnum).Name}");
             }
+            */
         }
 
         public static bool IsNotBlobType(this KVObject collection, string key)
-            => ((KVObject)collection).Properties[key].Type == KVType.ARRAY;
+            => collection[key].ValueType == KVValueType.Array;
 
         public static Vector2 ToVector2(this KVObject collection) => new(
             collection.GetFloatProperty("0"),
             collection.GetFloatProperty("1"));
 
+        public static Vector2 ToVector2(this KVValue collection) => new(
+            collection.GetFloatProperty("0"),
+            collection.GetFloatProperty("1"));
+
         public static Vector3 ToVector3(this KVObject collection) => new(
+            collection.GetFloatProperty("0"),
+            collection.GetFloatProperty("1"),
+            collection.GetFloatProperty("2"));
+
+        public static Vector3 ToVector3(this KVValue collection) => new(
             collection.GetFloatProperty("0"),
             collection.GetFloatProperty("1"),
             collection.GetFloatProperty("2"));
@@ -171,7 +230,19 @@ namespace ValveResourceFormat.Serialization
             collection.GetFloatProperty("2"),
             collection.GetFloatProperty("3"));
 
+        public static Vector4 ToVector4(this KVValue collection) => new(
+            collection.GetFloatProperty("0"),
+            collection.GetFloatProperty("1"),
+            collection.GetFloatProperty("2"),
+            collection.GetFloatProperty("3"));
+
         public static Quaternion ToQuaternion(this KVObject collection) => new(
+            collection.GetFloatProperty("0"),
+            collection.GetFloatProperty("1"),
+            collection.GetFloatProperty("2"),
+            collection.GetFloatProperty("3"));
+
+        public static Quaternion ToQuaternion(this KVValue collection) => new(
             collection.GetFloatProperty("0"),
             collection.GetFloatProperty("1"),
             collection.GetFloatProperty("2"),
@@ -187,9 +258,19 @@ namespace ValveResourceFormat.Serialization
             return new Matrix4x4(column1.X, column2.X, column3.X, column4.X, column1.Y, column2.Y, column3.Y, column4.Y, column1.Z, column2.Z, column3.Z, column4.Z, column1.W, column2.W, column3.W, column4.W);
         }
 
+        public static Matrix4x4 ToMatrix4x4(this KVValue[] array)
+        {
+            var column1 = array[0].ToVector4();
+            var column2 = array[1].ToVector4();
+            var column3 = array[2].ToVector4();
+            var column4 = array.Length > 3 ? array[3].ToVector4() : new Vector4(0, 0, 0, 1);
+
+            return new Matrix4x4(column1.X, column2.X, column3.X, column4.X, column1.Y, column2.Y, column3.Y, column4.Y, column1.Z, column2.Z, column3.Z, column4.Z, column1.W, column2.W, column3.W, column4.W);
+        }
+
         public static Matrix4x4 ToMatrix4x4(this KVObject array)
         {
-            var column4 = array.Count > 12
+            var column4 = array.Count() > 12
                 ? new Vector4(array.GetFloatProperty("12"), array.GetFloatProperty("13"), array.GetFloatProperty("14"), array.GetFloatProperty("15"))
                 : new Vector4(0, 0, 0, 1);
             return new Matrix4x4(
@@ -200,13 +281,14 @@ namespace ValveResourceFormat.Serialization
             );
         }
 
+        /*
         public static string Print(this KVObject collection) => PrintHelper(collection, 0);
 
         private static string PrintHelper(KVObject collection, int indent)
         {
             var stringBuilder = new StringBuilder();
             var space = new string(' ', indent * 4);
-            foreach (var kvp in collection)
+            foreach (var kvp in ((IEnumerable<KVObject>)collection))
             {
                 if (kvp.Value is KVObject nestedCollection)
                 {
@@ -219,8 +301,8 @@ namespace ValveResourceFormat.Serialization
                     stringBuilder.AppendLine(CultureInfo.InvariantCulture, $"{space}{kvp.Key} = {kvp.Value}");
                 }
             }
-
             return stringBuilder.ToString();
         }
+        */
     }
 }

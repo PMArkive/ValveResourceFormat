@@ -1,3 +1,5 @@
+global using ValveKeyValue;
+
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
@@ -33,7 +35,7 @@ namespace ValveResourceFormat.ResourceTypes
 
         public static bool IsBinaryKV3(uint magic) => magic is MAGIC or MAGIC2 or MAGIC3 or MAGIC4 or MAGIC5;
 
-        public ValveResourceFormat.Serialization.KeyValues.KVObject Data { get; private set; }
+        public KVObject Data { get; private set; }
         public Guid Encoding { get; private set; }
         public Guid Format { get; private set; }
 
@@ -162,7 +164,7 @@ namespace ValveResourceFormat.ResourceTypes
                     stringArray[i] = outRead.ReadNullTermString(System.Text.Encoding.UTF8);
                 }
 
-                Data = ParseBinaryKV3TempConvert(outRead, null, true);
+                Data = ParseBinaryKV3(outRead, null, true);
 
                 var trailer = outRead.ReadUInt32();
                 if (trailer != 0xFFFFFFFF)
@@ -259,7 +261,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
+                    Data = ParseBinaryKV3(outRead, null, true);
                 }
                 finally
                 {
@@ -448,7 +450,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
+                    Data = ParseBinaryKV3(outRead, null, true);
 
                     return;
                 }
@@ -535,7 +537,7 @@ namespace ValveResourceFormat.ResourceTypes
                     // Move back to the start of the KV data for reading.
                     outRead.BaseStream.Position = kvDataOffset;
 
-                    Data = ParseBinaryKV3TempConvert(outRead, null, true);
+                    Data = ParseBinaryKV3(outRead, null, true);
                 }
                 finally
                 {
@@ -639,38 +641,6 @@ namespace ValveResourceFormat.ResourceTypes
             }
 
             return ((KVType)databyte, flagInfo);
-        }
-
-        private Serialization.KeyValues.KVObject ParseBinaryKV3TempConvert(BinaryReader reader, KVObject parent, bool inArray = false)
-        {
-            string name = null;
-            if (!inArray)
-            {
-                var stringID = reader.ReadInt32();
-                name = (stringID == -1) ? string.Empty : stringArray[stringID];
-            }
-
-            var (datatype, flagInfo) = ReadType(reader);
-
-            var root = ReadBinaryValue(name, datatype, flagInfo, reader, parent);
-
-            //return ConvertTemp(root);
-            return new Serialization.KeyValues.KVObject("todo");
-        }
-
-        private static Serialization.KeyValues.KVObject ConvertTemp(KVObject obj)
-        {
-            var c = new Serialization.KeyValues.KVObject(obj.Name);
-
-            if (obj is IEnumerable<KVObject> objList)
-            {
-                foreach (var o in objList)
-                {
-                    c.AddProperty(o.Name, new Serialization.KeyValues.KVValue(KVType.NULL, (object)o.Value));
-                }
-            }
-
-            return c;
         }
 
         private KVObject ParseBinaryKV3(BinaryReader reader, KVObject parent, bool inArray = false)
@@ -938,12 +908,9 @@ namespace ValveResourceFormat.ResourceTypes
         {
             var realType = ConvertBinaryOnlyKVType(type);
 
-            if (flag != KVFlag.None)
-            {
-                return new KVFlaggedValue(realType, flag, data);
-            }
-
-            return new KVValue(realType, data);
+            var val = (KVValue)data;
+            val.Flag = flag;
+            return val;
         }
 
 #pragma warning disable CA1024 // Use properties where appropriate
