@@ -59,6 +59,11 @@ namespace GUI.Types.Renderer
                 }
             }
 
+            if (IsTranslucent && !IsOverlay)
+            {
+                combinedShaderParameters.Add("D_OIT_PASS", 1);
+            }
+
             Shader = shaderLoader.LoadShader(material.ShaderName, combinedShaderParameters);
         }
 
@@ -151,7 +156,7 @@ namespace GUI.Types.Renderer
                 shader.SetUniform4(param.Key, value);
             }
 
-            if (IsTranslucent)
+            if (IsTranslucent && IsOverlay)
             {
                 if (IsOverlay)
                 {

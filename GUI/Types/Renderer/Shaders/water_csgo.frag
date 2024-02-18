@@ -11,7 +11,9 @@ in vec4 vTangentOut;
 in vec3 vBitangentOut;
 in vec4 vColorBlendValues;
 
-out vec4 outputColor;
+layout (location = 0) out vec4 outputColor;
+
+#include "common/translucent.glsl"
 
 //uniform sampler2D g_tColor; // SrgbRead(true)
 //uniform sampler2D g_tDebris;
@@ -35,4 +37,6 @@ void main()
     vec3 color = mix(g_vWaterFogColor.rgb, g_vWaterDecayColor.rgb, decay_factor);
     outputColor = vec4(SrgbGammaToLinear(color), max(decay_factor, fog_factor));
     ApplyFog(outputColor.rgb, vFragPosition);
+
+    outputColor = WeightColorTranslucency(outputColor);
 }

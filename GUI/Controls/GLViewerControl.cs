@@ -371,6 +371,7 @@ namespace GUI.Controls
 
         public Framebuffer GLDefaultFramebuffer;
         public Framebuffer MainFramebuffer;
+        public Framebuffer TransparentFramebuffer;
         private int MaxSamples;
         private int NumSamples => Math.Max(1, Math.Min(Settings.Config.AntiAliasingSamples, MaxSamples));
 
@@ -428,6 +429,14 @@ namespace GUI.Controls
                     new(PixelInternalFormat.R11fG11fB10f, PixelFormat.Rgb, PixelType.UnsignedInt),
                     Framebuffer.DepthAttachmentFormat.Depth32F
                 );
+
+                TransparentFramebuffer = Framebuffer.Prepare(GLControl.Width,
+                    GLControl.Height,
+                    NumSamples,
+                    new(PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.HalfFloat),
+                    null
+                );
+                TransparentFramebuffer.Color2Format = new(PixelInternalFormat.R16f, PixelFormat.Red, PixelType.HalfFloat);
 
                 GLLoad?.Invoke(this, e);
             }
@@ -569,6 +578,7 @@ namespace GUI.Controls
 
             GLDefaultFramebuffer.Resize(w, h);
             MainFramebuffer.Resize(w, h, NumSamples);
+            TransparentFramebuffer.Resize(w, h, NumSamples);
 
             if (MainFramebuffer.InitialStatus == FramebufferErrorCode.FramebufferUndefined)
             {
@@ -584,6 +594,13 @@ namespace GUI.Controls
                 }
             }
 
+            if (MainFramebuffer != GLDefaultFramebuffer && TransparentFramebuffer.InitialStatus == FramebufferErrorCode.FramebufferUndefined)
+            {
+                TransparentFramebuffer.Initialize();
+
+                GL.NamedFramebufferTexture(TransparentFramebuffer.FboHandle, FramebufferAttachment.DepthAttachment, MainFramebuffer.Depth.Handle, 0);
+            }
+
             Camera.SetViewportSize(w, h);
             textRenderer.SetViewportSize(w, h);
             Picker?.Resize(w, h);
@@ -593,6 +610,7 @@ namespace GUI.Controls
         {
             GLDefaultFramebuffer?.Dispose();
             MainFramebuffer?.Dispose();
+            TransparentFramebuffer?.Dispose();
         }
 
         private void OnGotFocus(object sender, EventArgs e)

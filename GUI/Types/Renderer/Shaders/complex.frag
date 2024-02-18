@@ -33,11 +33,12 @@
 #endif
 
 //Parameter defines - These are default values and can be overwritten based on material/model parameters
+#define D_OIT_PASS 0
+
 // BLENDING
 #define F_FULLBRIGHT 0
 #define F_LIT 0
 #define F_UNLIT 0
-#define F_ADDITIVE_BLEND 0
 #define F_ALPHA_TEST 0
 #define F_TRANSLUCENT 0
 #define F_BLEND_MODE 0
@@ -90,7 +91,7 @@ in vec3 vBitangentOut;
 in vec2 vTexCoordOut;
 in vec4 vVertexColorOut;
 
-out vec4 outputColor;
+layout (location = 0) out vec4 outputColor;
 
 uniform sampler2D g_tColor; // SrgbRead(true)
 uniform sampler2D g_tNormal;
@@ -164,6 +165,10 @@ uniform sampler2D g_tTintMask;
 #define alphatest (F_ALPHA_TEST == 1) || ((defined(csgo_unlitgeneric_vfx) || defined(static_overlay_vfx_common)) && (F_BLEND_MODE == 2))
 #define translucent (F_TRANSLUCENT == 1) || (F_GLASS == 1) || defined(glass_vfx_common) || ((defined(csgo_unlitgeneric_vfx) || defined(static_overlay_vfx_common)) && (F_BLEND_MODE == 1)) // need to set this up on the cpu side
 #define blendMod2x (F_BLEND_MODE == 3)
+
+#if (D_OIT_PASS == 1)
+#include "common/translucent.glsl"
+#endif
 
 #if (alphatest == 1)
     uniform float g_flAlphaTestReference = 0.5;
@@ -678,5 +683,9 @@ void main()
 #endif
 #if renderMode_AnisoGloss == 1
     outputColor.rgb = vec3(mat.RoughnessTex.xy, 0.0);
+#endif
+
+#if (D_OIT_PASS == 1)
+    outputColor = WeightColorTranslucency(outputColor);
 #endif
 }

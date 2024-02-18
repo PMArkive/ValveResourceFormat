@@ -14,7 +14,9 @@ in vec3 vBitangentOut;
 in vec2 vTexCoordOut;
 in vec4 vColorOut;
 
-out vec4 outputColor;
+layout (location = 0) out vec4 outputColor;
+
+#include "common/translucent.glsl"
 
 #define F_TINT_MASK 0
 
@@ -105,4 +107,6 @@ void main()
 #elif renderMode_SpriteEffects
     outputColor = vec4(mask1, mask2, mask3, 1);
 #endif
+
+    outputColor = WeightColorTranslucency(outputColor);
 }

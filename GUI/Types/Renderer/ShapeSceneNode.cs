@@ -67,7 +67,18 @@ namespace GUI.Types.Renderer
         private void Init(List<SimpleVertex> verts, List<int> inds)
         {
             indexCount = inds.Count;
-            shader = Scene.GuiContext.ShaderLoader.LoadShader("vrf.default");
+
+            if (IsTranslucent)
+            {
+                shader = Scene.GuiContext.ShaderLoader.LoadShader("vrf.default", new Dictionary<string, byte>()
+                {
+                    { "F_TRANSLUCENT", 1 },
+                });
+            }
+            else
+            {
+                shader = Scene.GuiContext.ShaderLoader.LoadShader("vrf.default");
+            }
 
             GL.CreateVertexArrays(1, out vaoHandle);
             GL.CreateBuffers(1, out int vboHandle);

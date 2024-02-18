@@ -15,10 +15,12 @@ class Framebuffer : IDisposable
     public TextureTarget Target { get; protected set; }
     public int NumSamples { get; set; }
     public RenderTexture? Color { get; protected set; }
+    public RenderTexture? Color2 { get; protected set; }
     public RenderTexture? Depth { get; protected set; }
 
     // Maybe these can be in texture
     public AttachmentFormat? ColorFormat { get; protected set; }
+    public AttachmentFormat? Color2Format { get; set; }
     public DepthAttachmentFormat? DepthFormat { get; protected set; }
 
     public FramebufferErrorCode InitialStatus { get; private set; } = FramebufferErrorCode.FramebufferUndefined;
@@ -38,6 +40,14 @@ class Framebuffer : IDisposable
     public void Clear()
     {
         Bind(FramebufferTarget.Framebuffer);
+
+        if (Color2 != null)
+        {
+            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] { 0, 0, 0, 0 });
+            GL.ClearBuffer(ClearBuffer.Color, 1, new float[] { 1 });
+            return;
+        }
+
         GL.ClearColor(ClearColor);
         GL.Clear(ClearMask);
     }
@@ -133,6 +143,21 @@ class Framebuffer : IDisposable
 
             ResizeAttachment(Color, ColorFormat, width, height);
             GL.NamedFramebufferTexture(FboHandle, FramebufferAttachment.ColorAttachment0, Color.Handle, 0);
+        }
+
+        if (Color2Format != null)
+        {
+            Color2 = new RenderTexture(Target, width, height, 1, 1);
+
+#if DEBUG
+            var label = "FramebufferColor2";
+            GL.ObjectLabel(ObjectLabelIdentifier.Texture, Color2.Handle, label.Length, label);
+#endif
+
+            ResizeAttachment(Color2, Color2Format, width, height);
+            GL.NamedFramebufferTexture(FboHandle, FramebufferAttachment.ColorAttachment1, Color2.Handle, 0);
+
+            GL.NamedFramebufferDrawBuffers(FboHandle, 2, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1]);
         }
 
         if (DepthFormat != null)

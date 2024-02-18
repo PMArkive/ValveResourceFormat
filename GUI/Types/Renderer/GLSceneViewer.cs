@@ -41,6 +41,8 @@ namespace GUI.Types.Renderer
         private OctreeDebugRenderer<SceneNode> staticOctreeRenderer;
         private OctreeDebugRenderer<SceneNode> dynamicOctreeRenderer;
         protected SelectedNodeRenderer selectedNodeRenderer;
+        private Shader PostProcessShader;
+        private int PostProcessVao;
 
         public enum DepthOnlyProgram
         {
@@ -172,6 +174,9 @@ namespace GUI.Types.Renderer
             cubeFogResource.Read(cubeFogStream);
 
             Scene.FogInfo.DefaultFogTexture = GuiContext.MaterialLoader.LoadTexture(cubeFogResource);
+
+            GL.CreateVertexArrays(1, out PostProcessVao);
+            PostProcessShader = Scene.GuiContext.ShaderLoader.LoadShader("vrf.wboit");
         }
 
         public virtual void PostSceneLoad()
@@ -440,13 +445,31 @@ namespace GUI.Types.Renderer
             }
         }
 
-        private static void RenderTranslucentLayer(Scene scene, Scene.RenderContext renderContext)
+        private void RenderTranslucentLayer(Scene scene, Scene.RenderContext renderContext)
         {
+            TransparentFramebuffer.Clear();
+
             GL.DepthMask(false);
             GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(0, BlendingFactorSrc.One, BlendingFactorDest.One);
+            GL.BlendFunc(1, BlendingFactorSrc.Zero, BlendingFactorDest.OneMinusSrcColor);
 
             scene.RenderTranslucentLayer(renderContext);
 
+            renderContext.Framebuffer.Bind(FramebufferTarget.Framebuffer);
+
+            PostProcessShader.SetTexture(0, "colorTexture", TransparentFramebuffer.Color);
+            PostProcessShader.SetTexture(1, "alphaTexture", TransparentFramebuffer.Color2);
+
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            GL.Disable(EnableCap.DepthTest);
+
+            GL.UseProgram(PostProcessShader.Program);
+            GL.BindVertexArray(PostProcessVao);
+            GL.DrawArrays(PrimitiveType.TriangleFan, 0, 4);
+            GL.UseProgram(0);
+
+            GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
             GL.DepthMask(true);
         }

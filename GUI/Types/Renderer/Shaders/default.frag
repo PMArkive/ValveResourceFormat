@@ -1,8 +1,16 @@
 #version 460
 
 in vec4 vtxColor;
-out vec4 outputColor;
+layout (location = 0) out vec4 outputColor;
+
+#if (F_TRANSLUCENT == 1)
+#include "common/translucent.glsl"
+#endif
 
 void main(void) {
     outputColor = vtxColor;
+
+    #if (F_TRANSLUCENT == 1)
+        outputColor = WeightColorTranslucency(outputColor);
+    #endif
 }
