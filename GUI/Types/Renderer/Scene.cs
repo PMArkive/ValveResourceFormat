@@ -243,6 +243,15 @@ namespace GUI.Types.Renderer
             renderLooseNodes.Sort(MeshBatchRenderer.CompareCameraDistance);
         }
 
+        public void RenderOpaqueShadows(RenderContext renderContext)
+        {
+            using (new GLDebugGroup("Opaque Shadows"))
+            {
+                renderContext.RenderPass = RenderPass.Opaque;
+                MeshBatchRenderer.Render(renderOpaqueDrawCalls, renderContext);
+            }
+        }
+
         public void RenderOpaqueLayer(RenderContext renderContext)
         {
             var camera = renderContext.Camera;

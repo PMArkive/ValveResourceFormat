@@ -41,6 +41,8 @@ namespace GUI.Types.Renderer
         private OctreeDebugRenderer<SceneNode> staticOctreeRenderer;
         private OctreeDebugRenderer<SceneNode> dynamicOctreeRenderer;
         protected SelectedNodeRenderer selectedNodeRenderer;
+        private Shader depthOnlyShader;
+        public Framebuffer ShadowDepthBuffer { get; private set; }
 
         protected GLSceneViewer(VrfGuiContext guiContext, Frustum cullFrustum) : base(guiContext)
         {
@@ -219,6 +221,19 @@ namespace GUI.Types.Renderer
 
             Picker = new PickingTexture(Scene.GuiContext, OnPicked);
 
+            ShadowDepthBuffer = Framebuffer.Prepare(512, 512, 0, null, Framebuffer.DepthAttachmentFormat.Depth32F);
+            ShadowDepthBuffer.Initialize();
+            ShadowDepthBuffer.ClearMask = ClearBufferMask.DepthBufferBit;
+            GL.DrawBuffer(DrawBufferMode.None);
+            GL.ReadBuffer(ReadBufferMode.None);
+            Textures.Add(new(ReservedTextureSlots.ShadowDepthBufferDepth, "g_tShadowDepthBufferDepth", ShadowDepthBuffer.Depth));
+
+            depthOnlyShader = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte>()
+            {
+                ["D_ANIMATED"] = 1,
+            });
+
+            MainFramebuffer.Bind(FramebufferTarget.Framebuffer);
             CreateBuffers();
 
             var timer = Stopwatch.StartNew();
@@ -274,6 +289,7 @@ namespace GUI.Types.Renderer
                     renderContext.ReplacementShader = Picker.DebugShader;
                 }
 
+                RenderSceneShadows(renderContext);
                 RenderScenesWithView(renderContext);
             }
 
@@ -313,6 +329,36 @@ namespace GUI.Types.Renderer
 
             Scene.RenderOpaqueLayer(renderContext);
             Scene.RenderTranslucentLayer(renderContext);
+        }
+
+        private void RenderSceneShadows(Scene.RenderContext renderContext)
+        {
+            GL.Viewport(0, 0, ShadowDepthBuffer.Width, ShadowDepthBuffer.Height);
+            ShadowDepthBuffer.Clear();
+            ShadowDepthBuffer.Bind(FramebufferTarget.Framebuffer);
+
+            renderContext.Framebuffer = ShadowDepthBuffer;
+            renderContext.ReplacementShader = depthOnlyShader;
+            renderContext.Scene = Scene;
+
+            var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
+            var sunDir = Vector3.Normalize(new Vector3(sunMatrix.M31, sunMatrix.M32, sunMatrix.M33));
+
+            var maxLen = 1024f * MathF.Sqrt(3);
+            var sunPos = sunDir * maxLen;
+            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-512f, 512f, -512f, 512f, 1f, maxLen - 1f);
+            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
+
+            viewBuffer.Data.ViewToProjection = sunCameraView * sunCameraProj;
+            viewBuffer.Data.CameraPosition = sunPos;
+            viewBuffer.Update();
+
+            //var sunCamera = new Camera();
+            //sunCamera.SetViewportSize(ShadowDepthBuffer.Width, ShadowDepthBuffer.Height);
+            //sunCamera.SetViewConstants(viewBuffer.Data);
+            //viewBuffer.Update();
+
+            Scene.RenderOpaqueShadows(renderContext);
         }
 
         private void RenderScenesWithView(Scene.RenderContext renderContext)
