@@ -52,6 +52,13 @@ namespace GUI.Controls
         private int frametimeQuery1;
         private int frametimeQuery2;
 
+        public GLViewerControl(GLViewerControl parent)
+        {
+            GLControl = parent.GLControl;
+            textRenderer = parent.textRenderer;
+            Camera = parent.Camera;
+        }
+
         public GLViewerControl(VrfGuiContext guiContext)
         {
             InitializeComponent();

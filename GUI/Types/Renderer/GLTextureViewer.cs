@@ -120,6 +120,17 @@ namespace GUI.Types.Renderer
             AddControl(resetButton);
         }
 
+        public GLTextureViewer(GLViewerControl parent, VrfGuiContext guiContext) : base(parent)
+        {
+            GuiContext = guiContext;
+            shader = GuiContext.ShaderLoader.LoadShader("vrf.texture_decode", new Dictionary<string, byte>
+            {
+                { "TYPE_TEXTURE2D", 1 },
+            });
+
+            GL.CreateVertexArrays(1, out vao);
+        }
+
         public GLTextureViewer(VrfGuiContext guiContext, SKBitmap bitmap) : this(guiContext)
         {
             Bitmap = bitmap;
@@ -813,7 +824,7 @@ namespace GUI.Types.Renderer
 
         private void OnLoad(object sender, EventArgs e)
         {
-            if (Svg == null) /// Svg will be setup on <see cref="FirstPaint"/> because it needs to be rescaled
+            if (Svg == null && texture == null) /// Svg will be setup on <see cref="FirstPaint"/> because it needs to be rescaled
             {
                 SetupTexture(false);
             }
@@ -891,6 +902,26 @@ namespace GUI.Types.Renderer
             GL.Viewport(0, 0, GLControl.Width, GLControl.Height);
             MainFramebuffer.Clear();
             Draw(MainFramebuffer);
+        }
+
+        public void DrawLowerCorner(RenderTexture texture)
+        {
+            GL.Viewport(0, 0, 256, 256);
+            GL.DepthMask(false);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.CullFace);
+
+            this.texture = texture;
+            OriginalWidth = texture.Width;
+            OriginalHeight = texture.Height;
+
+            Draw(new Framebuffer(256, 256), true);
+            GL.UseProgram(0);
+            GL.BindVertexArray(0);
+
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.CullFace);
         }
 
         private void Draw(Framebuffer fbo, bool captureFullSizeImage = false)

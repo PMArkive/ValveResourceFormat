@@ -48,6 +48,12 @@ class Framebuffer : IDisposable
         FboHandle = handle;
     }
 
+    public Framebuffer(int w, int h)
+    {
+        Width = w;
+        Height = h;
+    }
+
     #region Default OpenGL Framebuffer instance, and equality checks
     Framebuffer(int fboHandle)
     {

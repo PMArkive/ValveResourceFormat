@@ -73,6 +73,28 @@
             return indirectCoords;
         }
     #endif
+#else
+
+    #define NoBakeLighting 1
+    uniform sampler2D g_tShadowDepthBufferDepth;
+
+    float CalculateSunShadowMapVisibility(vec3 vPosition)
+    {
+        vec4 projCoords = g_matWorldToShadow * vec4(vPosition, 1.0);
+        //projCoords = projCoords * 0.5 + 0.5;
+        float closestDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy).r;
+        float currentDepth = projCoords.z;
+
+        if (closestDepth == 0.0)
+            return 0.0;
+
+        if(currentDepth < 0.0)
+            return 1.0;
+
+        float visibility = currentDepth < closestDepth  ? 0.0 : 1.0;
+        return visibility;
+    }
+
 #endif
 
 vec3 getSunDir()
@@ -141,6 +163,9 @@ void CalculateDirectLighting(inout LightingTerms_t lighting, inout MaterialPrope
         visibility = 1.0 - dlsh[index];
     #endif
 
+    #if defined(NoBakeLighting)
+        visibility = CalculateSunShadowMapVisibility(mat.PositionWS);
+    #endif
 
     if (visibility > 0.0001)
     {
@@ -236,9 +261,6 @@ void CalculateIndirectLighting(inout LightingTerms_t lighting, inout MaterialPro
 
     //if (sin(g_flTime * 3) > 0)
     //    lighting.DiffuseIndirect = vec3(0.3);
-
-#else
-    #define NoBakeLighting 1
 #endif
 
     // Environment Maps
