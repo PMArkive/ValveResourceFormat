@@ -81,13 +81,13 @@
     float CalculateSunShadowMapVisibility(vec3 vPosition)
     {
         vec4 projCoords = g_matWorldToShadow * vec4(vPosition, 1.0);
-        projCoords /= projCoords.w;
-        projCoords = projCoords * 0.5 + 0.5;
-        //float closestDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy).r;
         float currentDepth = saturate(projCoords.z - 0.00001);
 
+        projCoords /= projCoords.w;
+        projCoords = projCoords * 0.5 + 0.5;
+
         //if (sin(g_flTime * 3) > 0)
-        //    return 1.0;
+        //    return pow(currentDepth, 1.4);
 
         if(currentDepth < 0.0)
             return 1.0;
@@ -98,24 +98,24 @@
 
 
         // this is to visualize the depth buffer in world space
-        visibility = pow(texture(g_tShadowDepthBufferDepth, projCoords.xy).r, 1.4);
-        return visibility;
+        //visibility = pow(texture(g_tShadowDepthBufferDepth, projCoords.xy).r, 1.4);
+        //return visibility;
 
-        //float shadow = 0.0;
-//
-        //vec2 texelSize = 1.0 / textureSize(g_tShadowDepthBufferDepth, 0);
-        //for(int x = -1; x <= 1; ++x)
-        //{
-        //    for(int y = -1; y <= 1; ++y)
-        //    {
-        //        float pcfDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy + vec2(x, y) * texelSize).r * 2;
-        //        shadow += currentDepth > pcfDepth ? 1.0 : 0.0;
-        //    }
-        //}
-//
-        //shadow /= 9.0;
-//
-        //visibility = 1 - shadow;
+        float shadow = 0.0;
+
+        vec2 texelSize = 1.0 / textureSize(g_tShadowDepthBufferDepth, 0);
+        for(int x = -1; x <= 1; ++x)
+        {
+            for(int y = -1; y <= 1; ++y)
+            {
+                float pcfDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy + vec2(x, y) * texelSize).r * 2;
+                shadow += currentDepth > pcfDepth ? 1.0 : 0.0;
+            }
+        }
+
+        shadow /= 9.0;
+
+        visibility = 1 - shadow;
         return visibility;
     }
 
