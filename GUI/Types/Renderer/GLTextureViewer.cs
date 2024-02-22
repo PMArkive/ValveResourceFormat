@@ -906,7 +906,7 @@ namespace GUI.Types.Renderer
 
         public void DrawLowerCorner(RenderTexture texture)
         {
-            GL.Viewport(0, 0, 512, 512);
+            GL.Viewport(0, 0, 256, 256);
             GL.DepthMask(false);
             GL.Disable(EnableCap.DepthTest);
             GL.Disable(EnableCap.CullFace);
@@ -915,7 +915,9 @@ namespace GUI.Types.Renderer
             OriginalWidth = texture.Width;
             OriginalHeight = texture.Height;
 
-            Draw(new Framebuffer(512, 512), true);
+            TextureScale = 4f;
+            Position = Vector2.Zero;
+            Draw(new Framebuffer(texture.Width, texture.Height), false);
             GL.UseProgram(0);
             GL.BindVertexArray(0);
 

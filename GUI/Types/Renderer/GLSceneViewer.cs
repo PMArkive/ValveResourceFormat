@@ -260,7 +260,7 @@ namespace GUI.Types.Renderer
 
             Picker = new PickingTexture(Scene.GuiContext, OnPicked);
 
-            ShadowDepthBuffer = Framebuffer.Prepare(512, 512, 0, null, Framebuffer.DepthAttachmentFormat.Depth32F);
+            ShadowDepthBuffer = Framebuffer.Prepare(2048, 2048, 0, null, Framebuffer.DepthAttachmentFormat.Depth32F);
             ShadowDepthBuffer.Initialize();
             ShadowDepthBuffer.ClearMask = ClearBufferMask.DepthBufferBit;
             GL.DrawBuffer(DrawBufferMode.None);
@@ -383,6 +383,7 @@ namespace GUI.Types.Renderer
         {
             GL.Viewport(0, 0, ShadowDepthBuffer.Width, ShadowDepthBuffer.Height);
             ShadowDepthBuffer.Bind(FramebufferTarget.Framebuffer);
+            GL.Disable(EnableCap.CullFace);
             GL.DepthRange(0, 1);
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
@@ -394,17 +395,16 @@ namespace GUI.Types.Renderer
             var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix)); // why is sun dir calculated like so?.
 
             var bbox = 2048f;
-            var sunPos = sunDir * bbox * 0.5f;
             var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
-            var sunCameraView = Matrix4x4.CreateLookAt(sunPos, Vector3.Zero, Vector3.UnitZ);
+            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
 
             var sunViewProj = sunCameraView * sunCameraProj;
             viewBuffer.Data.ViewToProjection = sunViewProj;
             viewBuffer.Data.WorldToShadow = sunViewProj;
-            viewBuffer.Data.CameraPosition = sunPos;
             viewBuffer.Update();
 
             Scene.RenderOpaqueShadows(renderContext);
+            GL.Enable(EnableCap.CullFace);
         }
 
         private void RenderScenesWithView(Scene.RenderContext renderContext)
