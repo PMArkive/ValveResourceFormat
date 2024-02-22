@@ -383,6 +383,9 @@ namespace GUI.Types.Renderer
         {
             GL.Viewport(0, 0, ShadowDepthBuffer.Width, ShadowDepthBuffer.Height);
             ShadowDepthBuffer.Bind(FramebufferTarget.Framebuffer);
+            GL.ClearDepth(1);
+            GL.DepthFunc(DepthFunction.Lequal);
+            GL.DepthRange(0, 1);
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
             renderContext.Framebuffer = ShadowDepthBuffer;
@@ -392,9 +395,9 @@ namespace GUI.Types.Renderer
             var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
             var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix)); // why is sun dir calculated like so?.
 
-            var maxLen = 128f * MathF.Sqrt(3);
-            var sunPos = sunDir * maxLen / 2;
-            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-64, 64, -64, 64, 5f, maxLen - 1f);
+            var bbox = 2048f;
+            var sunPos = sunDir * bbox * 0.5f;
+            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, 1f, bbox * 2 - 1f);
             var sunCameraView = Matrix4x4.CreateLookAt(sunPos, Vector3.Zero, Vector3.UnitZ);
 
             var sunViewProj = sunCameraView * sunCameraProj;
@@ -404,6 +407,8 @@ namespace GUI.Types.Renderer
             viewBuffer.Update();
 
             Scene.RenderOpaqueShadows(renderContext);
+            GL.ClearDepth(0);
+            GL.DepthFunc(DepthFunction.Greater);
         }
 
         private void RenderScenesWithView(Scene.RenderContext renderContext)
