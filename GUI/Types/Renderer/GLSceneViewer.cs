@@ -46,9 +46,9 @@ namespace GUI.Types.Renderer
         private GLViewerTrackBarControl sunYawTrackbar;
         private GLViewerTrackBarControl sunPitchTrackbar;
         private GLViewerTrackBarControl sunRollTrackbar;
-        private float SunPitch;
+        private float SunPitch = 45f;
         private float SunYaw = 200f;
-        private float SunRoll = 45f;
+        private float SunRoll;
         public Framebuffer ShadowDepthBuffer { get; private set; }
 
         protected GLSceneViewer(VrfGuiContext guiContext, Frustum cullFrustum) : base(guiContext)
@@ -267,6 +267,8 @@ namespace GUI.Types.Renderer
             GL.ReadBuffer(ReadBufferMode.None);
             Textures.Add(new(ReservedTextureSlots.ShadowDepthBufferDepth, "g_tShadowDepthBufferDepth", ShadowDepthBuffer.Depth));
 
+            GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureBaseLevel, 0);
+            GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureMaxLevel, 0);
             depthOnlyShader = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte>()
             {
                 ["D_ANIMATED"] = 1,
@@ -357,8 +359,6 @@ namespace GUI.Types.Renderer
                 }
             }
 
-            ShadowDepthBuffer.Bind(FramebufferTarget.ReadFramebuffer);
-            GL.BindTexture(TextureTarget.Texture2D, ShadowDepthBuffer.Depth.Handle);
             depthViewer.DrawLowerCorner(ShadowDepthBuffer.Depth);
         }
 
@@ -390,14 +390,16 @@ namespace GUI.Types.Renderer
             renderContext.Scene = Scene;
 
             var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
-            var sunDir = Vector3.Normalize(new Vector3(sunMatrix.M31, sunMatrix.M32, sunMatrix.M33));
+            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix)); // why is sun dir calculated like so?.
 
             var maxLen = 128f * MathF.Sqrt(3);
-            var sunPos = sunDir * maxLen;
-            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-64, 64, -64, 64, 1f, maxLen - 1f);
-            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
+            var sunPos = sunDir * maxLen / 2;
+            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-64, 64, -64, 64, 5f, maxLen - 1f);
+            var sunCameraView = Matrix4x4.CreateLookAt(sunPos, Vector3.Zero, Vector3.UnitZ);
 
-            viewBuffer.Data.ViewToProjection = viewBuffer.Data.WorldToShadow = sunCameraView * sunCameraProj;
+            var sunViewProj = sunCameraView * sunCameraProj;
+            viewBuffer.Data.ViewToProjection = sunViewProj;
+            viewBuffer.Data.WorldToShadow = sunViewProj;
             viewBuffer.Data.CameraPosition = sunPos;
             viewBuffer.Update();
 

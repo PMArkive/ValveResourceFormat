@@ -81,17 +81,18 @@
     float CalculateSunShadowMapVisibility(vec3 vPosition)
     {
         vec4 projCoords = g_matWorldToShadow * vec4(vPosition, 1.0);
-        //projCoords = projCoords * 0.5 + 0.5;
-        float closestDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy).r;
-        float currentDepth = projCoords.z;
+        projCoords /= projCoords.w;
+        projCoords = projCoords * 0.5 + 0.5;
+        float closestDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy).r * 1.6; // why is this constant needed
+        float currentDepth = projCoords.z - 0.005;
 
-        if (closestDepth == 0.0)
-            return 0.0;
+        if (sin(g_flTime * 3) > 0)
+            return 1.0;
 
         if(currentDepth < 0.0)
             return 1.0;
 
-        float visibility = currentDepth < closestDepth  ? 0.0 : 1.0;
+        float visibility = currentDepth > closestDepth  ? 0.0 : 1.0;
         return visibility;
     }
 
@@ -99,7 +100,7 @@
 
 vec3 getSunDir()
 {
-    return -normalize(mat3(vLightPosition) * vec3(-1, 0, 0));
+    return normalize(mat3(vLightPosition) * vec3(-1, 0, 0));
 }
 
 vec3 getSunColor()
@@ -111,7 +112,7 @@ vec3 getSunColor()
 // This should contain our direct lighting loop
 void CalculateDirectLighting(inout LightingTerms_t lighting, inout MaterialProperties_t mat)
 {
-    vec3 lightVector = normalize(-getSunDir());
+    vec3 lightVector = getSunDir();
 
     // Lighting
     float visibility = 1.0;

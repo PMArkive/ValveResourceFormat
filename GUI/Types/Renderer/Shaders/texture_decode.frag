@@ -292,6 +292,6 @@ void main()
             flBackgroundMix -= vColorOutput.a;
         }
 
-        vColorOutput.rgb = mix(vColorOutput.rgb, vBackgroundColor, flBackgroundMix);
+        vColorOutput.rgb = mix(vColorOutput.rgb.xxx, vBackgroundColor, flBackgroundMix);
     }
 }
