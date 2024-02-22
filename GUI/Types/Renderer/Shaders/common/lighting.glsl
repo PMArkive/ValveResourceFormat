@@ -108,8 +108,8 @@
         {
             for(int y = -1; y <= 1; ++y)
             {
-                float pcfDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy + vec2(x, y) * texelSize).r * 2;
-                shadow += currentDepth > pcfDepth ? 1.0 : 0.0;
+                float pcfDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy + vec2(x, y) * texelSize).r - bias;
+                shadow += currentDepth > pcfDepth ? 0.0 : 1.0;
             }
         }
 

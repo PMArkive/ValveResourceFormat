@@ -383,8 +383,6 @@ namespace GUI.Types.Renderer
         {
             GL.Viewport(0, 0, ShadowDepthBuffer.Width, ShadowDepthBuffer.Height);
             ShadowDepthBuffer.Bind(FramebufferTarget.Framebuffer);
-            GL.ClearDepth(1);
-            GL.DepthFunc(DepthFunction.Lequal);
             GL.DepthRange(0, 1);
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
@@ -397,7 +395,7 @@ namespace GUI.Types.Renderer
 
             var bbox = 2048f;
             var sunPos = sunDir * bbox * 0.5f;
-            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, 1f, bbox * 2 - 1f);
+            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
             var sunCameraView = Matrix4x4.CreateLookAt(sunPos, Vector3.Zero, Vector3.UnitZ);
 
             var sunViewProj = sunCameraView * sunCameraProj;
@@ -407,8 +405,6 @@ namespace GUI.Types.Renderer
             viewBuffer.Update();
 
             Scene.RenderOpaqueShadows(renderContext);
-            GL.ClearDepth(0);
-            GL.DepthFunc(DepthFunction.Greater);
         }
 
         private void RenderScenesWithView(Scene.RenderContext renderContext)
