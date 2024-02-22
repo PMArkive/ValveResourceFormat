@@ -46,8 +46,8 @@ namespace GUI.Types.Renderer
         private GLViewerTrackBarControl sunYawTrackbar;
         private GLViewerTrackBarControl sunPitchTrackbar;
         private GLViewerTrackBarControl sunRollTrackbar;
-        private float SunPitch = 45f;
-        private float SunYaw = 200f;
+        private float SunPitch = 60f;
+        private float SunYaw = 150f;
         private float SunRoll;
         public Framebuffer ShadowDepthBuffer { get; private set; }
 
@@ -269,6 +269,9 @@ namespace GUI.Types.Renderer
 
             GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureBaseLevel, 0);
             GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureMaxLevel, 0);
+            GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRToTexture);
+            ShadowDepthBuffer.Depth.SetFiltering(TextureMinFilter.Linear, TextureMagFilter.Linear);
+            ShadowDepthBuffer.Depth.SetWrapMode(TextureWrapMode.ClampToBorder);
             depthOnlyShader = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte>()
             {
                 ["D_ANIMATED"] = 1,
@@ -286,7 +289,7 @@ namespace GUI.Types.Renderer
             PostSceneLoad();
 
             depthViewer = new GLTextureViewer(this, Scene.GuiContext);
-            Scene.LightingInfo.LightingData.SunLightColor = Vector4.One;
+            Scene.LightingInfo.LightingData.SunLightColor = new Vector4(1, 0.77f, 0.62f, 3.5f);
 
             GLLoad -= OnLoad;
             GLPaint += OnPaint;
@@ -394,13 +397,13 @@ namespace GUI.Types.Renderer
             var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
             var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix)); // why is sun dir calculated like so?.
 
-            var bbox = 2048f;
+            var bbox = 1400f;
             var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
             var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
 
             var sunViewProj = sunCameraView * sunCameraProj;
             viewBuffer.Data.ViewToProjection = sunViewProj;
-            viewBuffer.Data.WorldToShadow = sunViewProj;
+            viewBuffer.Data.WorldToShadow = sunViewProj; // could apply offset here
             viewBuffer.Update();
 
             Scene.RenderOpaqueShadows(renderContext);
