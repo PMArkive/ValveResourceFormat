@@ -79,7 +79,7 @@
 #endif
 
 #if defined(NoBakeLighting) || (LightmapGameVersionNumber == 0)
-    uniform sampler2D g_tShadowDepthBufferDepth;
+    uniform sampler2DShadow g_tShadowDepthBufferDepth;
 
     float CalculateSunShadowMapVisibility(vec3 vPosition)
     {
@@ -111,8 +111,8 @@
         {
             for(int y = -1; y <= 1; ++y)
             {
-                float pcfDepth = texture(g_tShadowDepthBufferDepth, projCoords.xy + vec2(x, y) * texelSize).r - bias;
-                shadow += currentDepth > pcfDepth ? 0.0 : 1.0;
+                float pcfDepth = texture(g_tShadowDepthBufferDepth, vec3(projCoords.xy + vec2(x, y) * texelSize, currentDepth + bias)).r;
+                shadow += pcfDepth;
             }
         }
 
