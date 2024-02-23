@@ -122,14 +122,17 @@ namespace GUI.Types.Renderer
             {
                 if (vao != request.Call.VertexArrayObject)
                 {
-                    vao = request.Call.VertexArrayObject;
+                    vao = context.ReplacementMaterial is null ? request.Call.VertexArrayObject : request.Call.DepthOnlyVAO;
                     GL.BindVertexArray(vao);
                 }
 
-                if (material != request.Call.Material)
+                var requestMaterial = context.ReplacementMaterial ?? request.Call.Material;
+
+                if (material != requestMaterial)
                 {
                     material?.PostRender();
 
+                    // Todo: replacementmaterial
                     var requestShader = context.ReplacementShader ?? request.Call.Material.Shader;
 
                     // If the material did not change, shader could not have changed
@@ -185,7 +188,7 @@ namespace GUI.Types.Renderer
                         context.Scene.FogInfo.SetCubemapFogTexture(shader);
                     }
 
-                    material = request.Call.Material;
+                    material = requestMaterial;
                     material.Render(shader);
                 }
 

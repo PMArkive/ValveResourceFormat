@@ -100,8 +100,7 @@
         float visibility = 1.0;
 
 
-        // this is to visualize the depth buffer in world space
-        //visibility = pow(texture(g_tShadowDepthBufferDepth, projCoords.xy).r, 1.4);
+        //visibility = 1 - textureLod(g_tShadowDepthBufferDepth, vec3(projCoords.xy, currentDepth + bias), 0).r;
         //return visibility;
 
         float shadow = 0.0;
@@ -111,7 +110,7 @@
         {
             for(int y = -1; y <= 1; ++y)
             {
-                float pcfDepth = texture(g_tShadowDepthBufferDepth, vec3(projCoords.xy + vec2(x, y) * texelSize, currentDepth + bias)).r;
+                float pcfDepth = textureLod(g_tShadowDepthBufferDepth, vec3(projCoords.xy + vec2(x, y) * texelSize, currentDepth + bias), 0).r;
                 shadow += pcfDepth;
             }
         }
@@ -190,10 +189,10 @@ void CalculateDirectLighting(inout LightingTerms_t lighting, inout MaterialPrope
         visibility = 1.0 - dlsh[index];
     #endif
 
-    visibility *= CalculateSunShadowMapVisibility(mat.PositionWS);
-
     if (visibility > 0.0001)
     {
+        visibility *= CalculateSunShadowMapVisibility(mat.PositionWS);
+
         CalculateShading(lighting, lightVector, visibility * getSunColor(), mat);
     }
 }

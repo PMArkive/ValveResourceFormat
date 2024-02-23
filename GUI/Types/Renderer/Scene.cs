@@ -26,6 +26,7 @@ namespace GUI.Types.Renderer
             public Framebuffer Framebuffer { get; set; }
             public RenderPass RenderPass { get; set; }
             public Shader ReplacementShader { get; set; }
+            public RenderMaterial ReplacementMaterial { get; set; }
         }
 
         public WorldLightingInfo LightingInfo { get; }
@@ -218,6 +219,16 @@ namespace GUI.Types.Renderer
                         }
                     }
                 }
+                else if (node is SceneAggregate.Fragment fragment)
+                {
+                    Add(new MeshBatchRenderer.Request
+                    {
+                        Transform = fragment.Transform,
+                        Mesh = fragment.RenderMesh,
+                        Call = fragment.DrawCall,
+                        Node = node,
+                    }, RenderPass.Opaque);
+                }
                 else
                 {
                     Add(new MeshBatchRenderer.Request
@@ -239,7 +250,7 @@ namespace GUI.Types.Renderer
             [DepthOnlyProgram.Animated] = [],
         };
 
-        public void SetupSceneShadows(Camera camera)
+        public void SetupSceneShadows(Camera camera, Span<RenderMaterial> depthOnlyMaterials)
         {
             if (!LightingInfo.EnableDynamicShadows)
             {
@@ -260,16 +271,29 @@ namespace GUI.Types.Renderer
 
             DynamicOctree.Root.Query(LightingInfo.SunLightFrustum, CulledShadowNodes);
 
+            List<RenderableMesh> listWithSingleMesh = [null];
+
             foreach (var node in CulledShadowNodes)
             {
-                if (node is not IRenderableMeshCollection meshCollection)
+                List<RenderableMesh> meshes;
+
+                if (node is IRenderableMeshCollection meshCollection)
+                {
+                    meshes = meshCollection.RenderableMeshes;
+                }
+                else if (node is SceneAggregate aggregate)
+                {
+                    listWithSingleMesh[0] = aggregate.RenderMesh;
+                    meshes = listWithSingleMesh;
+                }
+                else
                 {
                     continue;
                 }
 
                 var animated = node is ModelSceneNode model && model.IsAnimated;
 
-                foreach (var mesh in meshCollection.RenderableMeshes)
+                foreach (var mesh in meshes)
                 {
                     foreach (var opaqueCall in mesh.DrawCallsOpaque)
                     {
@@ -279,6 +303,8 @@ namespace GUI.Types.Renderer
                             (true, _) => DepthOnlyProgram.StaticAlphaTest,
                             (false, true) => DepthOnlyProgram.Animated,
                         };
+
+                        mesh.SetDepthOnlyVao(opaqueCall, depthOnlyMaterials[(int)bucket]);
 
                         CulledShadowDrawCalls[bucket].Add(new MeshBatchRenderer.Request
                         {
@@ -294,7 +320,7 @@ namespace GUI.Types.Renderer
             CulledShadowNodes.Clear();
         }
 
-        public void RenderOpaqueShadows(RenderContext renderContext, Span<Shader> depthOnlyShaders)
+        public void RenderOpaqueShadows(RenderContext renderContext, Span<RenderMaterial> depthOnlyMaterials)
         {
             using (new GLDebugGroup("Opaque Shadows"))
             {
@@ -302,7 +328,7 @@ namespace GUI.Types.Renderer
 
                 foreach (var (program, calls) in CulledShadowDrawCalls)
                 {
-                    renderContext.ReplacementShader = depthOnlyShaders[(int)program];
+                    renderContext.ReplacementMaterial = depthOnlyMaterials[(int)program];
                     MeshBatchRenderer.Render(calls, renderContext);
                 }
             }

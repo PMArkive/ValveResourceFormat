@@ -49,6 +49,7 @@ namespace GUI.Types.Renderer
             Animated,
         }
         private Shader[] depthOnlyShaders = new Shader[Enum.GetValues<DepthOnlyProgram>().Length];
+        private RenderMaterial[] depthOnlyMaterials = new RenderMaterial[Enum.GetValues<DepthOnlyProgram>().Length];
         private GLTextureViewer depthViewer;
         private GLViewerTrackBarControl sunYawTrackbar;
         private GLViewerTrackBarControl sunPitchTrackbar;
@@ -76,6 +77,39 @@ namespace GUI.Types.Renderer
         protected GLSceneViewer(VrfGuiContext guiContext) : base(guiContext)
         {
             Scene = new Scene(guiContext);
+
+
+            AddControl(new Label
+            {
+                Text = "Sun Angle",
+            });
+
+            sunYawTrackbar = AddTrackBar(value =>
+            {
+                SunYaw = value;
+            });
+            sunYawTrackbar.TrackBar.TickFrequency = 5;
+            sunYawTrackbar.TrackBar.Minimum = 0;
+            sunYawTrackbar.TrackBar.Maximum = 360;
+            sunYawTrackbar.TrackBar.Value = (int)SunYaw;
+
+            sunPitchTrackbar = AddTrackBar(value =>
+            {
+                SunPitch = value;
+            });
+            sunPitchTrackbar.TrackBar.TickFrequency = 5;
+            sunPitchTrackbar.TrackBar.Minimum = 0;
+            sunPitchTrackbar.TrackBar.Maximum = 360;
+            sunPitchTrackbar.TrackBar.Value = (int)SunPitch;
+
+            sunRollTrackbar = AddTrackBar(value =>
+            {
+                SunRoll = value;
+            });
+            sunRollTrackbar.TrackBar.TickFrequency = 5;
+            sunRollTrackbar.TrackBar.Minimum = 0;
+            sunRollTrackbar.TrackBar.Maximum = 360;
+            sunRollTrackbar.TrackBar.Value = (int)SunRoll;
 
             InitializeControl();
             AddCheckBox("Lock Cull Frustum", false, (v) =>
@@ -221,38 +255,6 @@ namespace GUI.Types.Renderer
             dynamicOctreeRenderer = new OctreeDebugRenderer<SceneNode>(Scene.DynamicOctree, Scene.GuiContext, true);
 
             SetAvailableRenderModes();
-
-            AddControl(new Label
-            {
-                Text = "Sun Angle",
-            });
-
-            sunYawTrackbar = AddTrackBar(value =>
-            {
-                SunYaw = value;
-            });
-            sunYawTrackbar.TrackBar.TickFrequency = 5;
-            sunYawTrackbar.TrackBar.Minimum = 0;
-            sunYawTrackbar.TrackBar.Maximum = 360;
-            sunYawTrackbar.TrackBar.Value = (int)SunYaw;
-
-            sunPitchTrackbar = AddTrackBar(value =>
-            {
-                SunPitch = value;
-            });
-            sunPitchTrackbar.TrackBar.TickFrequency = 5;
-            sunPitchTrackbar.TrackBar.Minimum = 0;
-            sunPitchTrackbar.TrackBar.Maximum = 360;
-            sunPitchTrackbar.TrackBar.Value = (int)SunPitch;
-
-            sunRollTrackbar = AddTrackBar(value =>
-            {
-                SunRoll = value;
-            });
-            sunRollTrackbar.TrackBar.TickFrequency = 5;
-            sunRollTrackbar.TrackBar.Minimum = 0;
-            sunRollTrackbar.TrackBar.Maximum = 360;
-            sunRollTrackbar.TrackBar.Value = (int)SunRoll;
         }
 
         protected abstract void LoadScene();
@@ -284,6 +286,11 @@ namespace GUI.Types.Renderer
             depthOnlyShaders[(int)DepthOnlyProgram.StaticAlphaTest] = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte> { { "F_ALPHA_TEST", 1 } });
             depthOnlyShaders[(int)DepthOnlyProgram.Animated] = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte> { { "D_ANIMATED", 1 } });
 
+            foreach (var program in Enum.GetValues<DepthOnlyProgram>())
+            {
+                depthOnlyMaterials[(int)program] = new RenderMaterial(depthOnlyShaders[(int)program]);
+            }
+
             MainFramebuffer.Bind(FramebufferTarget.Framebuffer);
             CreateBuffers();
 
@@ -296,7 +303,9 @@ namespace GUI.Types.Renderer
             PostSceneLoad();
 
             depthViewer = new GLTextureViewer(this, Scene.GuiContext);
-            //Scene.LightingInfo.LightingData.SunLightColor = new Vector4(1, 0.77f, 0.62f, 3.5f);
+
+            if (!Scene.LightingInfo.HasBakedShadowsFromLightmap)
+                Scene.LightingInfo.LightingData.SunLightColor = new Vector4(1, 0.77f, 0.62f, 3.5f);
 
             GLLoad -= OnLoad;
             GLPaint += OnPaint;
@@ -309,7 +318,8 @@ namespace GUI.Types.Renderer
             Uptime += e.FrameTime;
             viewBuffer.Data.Time = Uptime;
 
-            //Scene.LightingInfo.LightingData.SunLightPosition = Matrix4x4.CreateFromYawPitchRoll(SunYaw * MathF.PI / 180f, SunPitch * MathF.PI / 180f, SunRoll * MathF.PI / 180f);
+            if (!Scene.LightingInfo.HasBakedShadowsFromLightmap)
+                Scene.LightingInfo.LightingData.SunLightPosition = Matrix4x4.CreateFromYawPitchRoll(SunYaw * MathF.PI / 180f, SunPitch * MathF.PI / 180f, SunRoll * MathF.PI / 180f);
 
             var renderContext = new Scene.RenderContext
             {
@@ -325,7 +335,7 @@ namespace GUI.Types.Renderer
 
                 selectedNodeRenderer.Update(new Scene.UpdateContext(e.FrameTime));
 
-                Scene.SetupSceneShadows(Camera);
+                Scene.SetupSceneShadows(Camera, depthOnlyMaterials);
                 Scene.CollectSceneDrawCalls(Camera, lockedCullFrustum);
                 SkyboxScene?.CollectSceneDrawCalls(Camera, lockedCullFrustum);
             }
@@ -370,7 +380,7 @@ namespace GUI.Types.Renderer
                 }
             }
 
-            depthViewer.DrawLowerCorner(ShadowDepthBuffer.Depth);
+            //depthViewer.DrawLowerCorner(ShadowDepthBuffer.Depth);
         }
 
         protected void DrawMainScene()
@@ -405,7 +415,7 @@ namespace GUI.Types.Renderer
             viewBuffer.Data.WorldToShadow = Scene.LightingInfo.SunViewProjection; // could apply offset here
             viewBuffer.Update(); // TODO: Partial update
 
-            Scene.RenderOpaqueShadows(renderContext, depthOnlyShaders);
+            Scene.RenderOpaqueShadows(renderContext, depthOnlyMaterials);
             GL.Enable(EnableCap.CullFace);
         }
 

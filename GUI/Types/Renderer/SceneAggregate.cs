@@ -8,15 +8,13 @@ namespace GUI.Types.Renderer
     {
         public RenderableMesh RenderMesh { get; }
 
-        internal sealed class Fragment : SceneNode, IRenderableMeshCollection
+        internal sealed class Fragment : SceneNode
         {
             public SceneNode Parent { get; init; }
             public RenderableMesh RenderMesh { get; init; }
             public DrawCall DrawCall { get; init; }
 
             public Vector4 Tint { get; set; } = Vector4.One;
-
-            public List<RenderableMesh> RenderableMeshes => [RenderMesh];
 
             public Fragment(Scene scene, SceneNode parent, AABB bounds) : base(scene)
             {

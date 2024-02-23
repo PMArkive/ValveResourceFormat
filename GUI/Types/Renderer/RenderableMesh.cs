@@ -158,6 +158,20 @@ namespace GUI.Types.Renderer
             }
         }
 
+        public void SetDepthOnlyVao(DrawCall drawCall, RenderMaterial depthMaterial)
+        {
+            if (drawCall.DepthOnlyVAO != -1)
+            {
+                return;
+            }
+
+            drawCall.DepthOnlyVAO = guiContext.MeshBufferCache.GetVertexArrayObject(
+                VBIBHashCode,
+                drawCall.VertexBuffer,
+                depthMaterial,
+                drawCall.IndexBuffer.Id);
+        }
+
         private void UpdateVertexArrayObject(DrawCall drawCall)
         {
             drawCall.VertexArrayObject = guiContext.MeshBufferCache.GetVertexArrayObject(
