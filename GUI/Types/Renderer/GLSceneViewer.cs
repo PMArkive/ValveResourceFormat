@@ -41,7 +41,14 @@ namespace GUI.Types.Renderer
         private OctreeDebugRenderer<SceneNode> staticOctreeRenderer;
         private OctreeDebugRenderer<SceneNode> dynamicOctreeRenderer;
         protected SelectedNodeRenderer selectedNodeRenderer;
-        private Shader depthOnlyShader;
+
+        public enum DepthOnlyProgram
+        {
+            Static,
+            StaticAlphaTest,
+            Animated,
+        }
+        private Shader[] depthOnlyShaders = new Shader[Enum.GetValues<DepthOnlyProgram>().Length];
         private GLTextureViewer depthViewer;
         private GLViewerTrackBarControl sunYawTrackbar;
         private GLViewerTrackBarControl sunPitchTrackbar;
@@ -272,10 +279,10 @@ namespace GUI.Types.Renderer
             GL.TextureParameter(ShadowDepthBuffer.Depth.Handle, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRToTexture);
             ShadowDepthBuffer.Depth.SetFiltering(TextureMinFilter.Linear, TextureMagFilter.Linear);
             ShadowDepthBuffer.Depth.SetWrapMode(TextureWrapMode.ClampToBorder);
-            depthOnlyShader = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte>()
-            {
-                ["D_ANIMATED"] = 1,
-            });
+
+            depthOnlyShaders[(int)DepthOnlyProgram.Static] = GuiContext.ShaderLoader.LoadShader("vrf.depth_only");
+            depthOnlyShaders[(int)DepthOnlyProgram.StaticAlphaTest] = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte> { { "F_ALPHA_TEST", 1 } });
+            depthOnlyShaders[(int)DepthOnlyProgram.Animated] = GuiContext.ShaderLoader.LoadShader("vrf.depth_only", new Dictionary<string, byte> { { "D_ANIMATED", 1 } });
 
             MainFramebuffer.Bind(FramebufferTarget.Framebuffer);
             CreateBuffers();
@@ -318,6 +325,7 @@ namespace GUI.Types.Renderer
 
                 selectedNodeRenderer.Update(new Scene.UpdateContext(e.FrameTime));
 
+                Scene.SetupSceneShadows(Camera);
                 Scene.CollectSceneDrawCalls(Camera, lockedCullFrustum);
                 SkyboxScene?.CollectSceneDrawCalls(Camera, lockedCullFrustum);
             }
@@ -391,23 +399,13 @@ namespace GUI.Types.Renderer
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
             renderContext.Framebuffer = ShadowDepthBuffer;
-            renderContext.ReplacementShader = depthOnlyShader;
             renderContext.Scene = Scene;
 
-            var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
-            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix with { Translation = Vector3.Zero })); // why is sun dir calculated like so?.
+            viewBuffer.Data.ViewToProjection = Scene.LightingInfo.SunViewProjection;
+            viewBuffer.Data.WorldToShadow = Scene.LightingInfo.SunViewProjection; // could apply offset here
+            viewBuffer.Update(); // TODO: Partial update
 
-            var bbox = 1400f;
-            var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
-            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
-            //sunCameraProj.Translation = Camera.Location;
-
-            var sunViewProj = sunCameraView * sunCameraProj;
-            viewBuffer.Data.ViewToProjection = sunViewProj;
-            viewBuffer.Data.WorldToShadow = sunViewProj; // could apply offset here
-            viewBuffer.Update();
-
-            Scene.RenderOpaqueShadows(renderContext);
+            Scene.RenderOpaqueShadows(renderContext, depthOnlyShaders);
             GL.Enable(EnableCap.CullFace);
         }
 

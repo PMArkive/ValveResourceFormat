@@ -809,7 +809,7 @@ namespace GUI.Types.Renderer
                     modelNode.SetActiveMeshGroups(groups.Skip(bodyGroup).Take(1));
                 }
 
-                scene.Add(modelNode, isAnimated);
+                scene.Add(modelNode, true);
 
                 var phys = newModel.GetEmbeddedPhys();
                 if (phys == null)

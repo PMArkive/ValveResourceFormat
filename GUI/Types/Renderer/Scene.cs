@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Linq;
 using GUI.Types.Renderer.UniformBuffers;
 using GUI.Utils;
+using static GUI.Types.Renderer.GLSceneViewer;
 
 namespace GUI.Types.Renderer
 {
@@ -217,19 +218,6 @@ namespace GUI.Types.Renderer
                         }
                     }
                 }
-                else if (node is SceneAggregate aggregate)
-                {
-                }
-                else if (node is SceneAggregate.Fragment fragment)
-                {
-                    Add(new MeshBatchRenderer.Request
-                    {
-                        Transform = fragment.Transform,
-                        Mesh = fragment.RenderMesh,
-                        Call = fragment.DrawCall,
-                        Node = node,
-                    }, RenderPass.Opaque);
-                }
                 else
                 {
                     Add(new MeshBatchRenderer.Request
@@ -243,12 +231,80 @@ namespace GUI.Types.Renderer
             renderLooseNodes.Sort(MeshBatchRenderer.CompareCameraDistance);
         }
 
-        public void RenderOpaqueShadows(RenderContext renderContext)
+        private List<SceneNode> CulledShadowNodes { get; } = [];
+        private Dictionary<DepthOnlyProgram, List<MeshBatchRenderer.Request>> CulledShadowDrawCalls { get; } = new()
+        {
+            [DepthOnlyProgram.Static] = [],
+            [DepthOnlyProgram.StaticAlphaTest] = [],
+            [DepthOnlyProgram.Animated] = [],
+        };
+
+        public void SetupSceneShadows(Camera camera)
+        {
+            if (!LightingInfo.EnableDynamicShadows)
+            {
+                return;
+            }
+
+            LightingInfo.UpdateLightFrusta(camera);
+
+            foreach (var bucket in CulledShadowDrawCalls.Values)
+            {
+                bucket.Clear();
+            }
+
+            if (!LightingInfo.HasBakedShadowsFromLightmap)
+            {
+                StaticOctree.Root.Query(LightingInfo.SunLightFrustum, CulledShadowNodes);
+            }
+
+            DynamicOctree.Root.Query(LightingInfo.SunLightFrustum, CulledShadowNodes);
+
+            foreach (var node in CulledShadowNodes)
+            {
+                if (node is not IRenderableMeshCollection meshCollection)
+                {
+                    continue;
+                }
+
+                var animated = node is ModelSceneNode model && model.IsAnimated;
+
+                foreach (var mesh in meshCollection.RenderableMeshes)
+                {
+                    foreach (var opaqueCall in mesh.DrawCallsOpaque)
+                    {
+                        var bucket = (opaqueCall.Material.IsAlphaTest, animated) switch
+                        {
+                            (false, false) => DepthOnlyProgram.Static,
+                            (true, _) => DepthOnlyProgram.StaticAlphaTest,
+                            (false, true) => DepthOnlyProgram.Animated,
+                        };
+
+                        CulledShadowDrawCalls[bucket].Add(new MeshBatchRenderer.Request
+                        {
+                            Transform = node.Transform,
+                            Mesh = mesh,
+                            Call = opaqueCall,
+                            Node = node,
+                        });
+                    }
+                }
+            }
+
+            CulledShadowNodes.Clear();
+        }
+
+        public void RenderOpaqueShadows(RenderContext renderContext, Span<Shader> depthOnlyShaders)
         {
             using (new GLDebugGroup("Opaque Shadows"))
             {
-                renderContext.RenderPass = RenderPass.Opaque;
-                MeshBatchRenderer.Render(renderOpaqueDrawCalls, renderContext);
+                renderContext.RenderPass = RenderPass.DepthOnly;
+
+                foreach (var (program, calls) in CulledShadowDrawCalls)
+                {
+                    renderContext.ReplacementShader = depthOnlyShaders[(int)program];
+                    MeshBatchRenderer.Render(calls, renderContext);
+                }
             }
         }
 

@@ -47,6 +47,12 @@ partial class Scene
             //set => scene.RenderAttributes["LightmapGameVersionNumber"] = (byte)value;
         }
 
+        public bool HasBakedShadowsFromLightmap => scene.RenderAttributes.GetValueOrDefault("LightmapGameVersionNumber") > 0;
+        public bool EnableDynamicShadows { get; set; } = true;
+
+        public Matrix4x4 SunViewProjection { get; internal set; }
+        public Frustum SunLightFrustum = Frustum.CreateEmpty();
+
         public void SetLightmapTextures(Shader shader)
         {
             var i = 0;
@@ -117,6 +123,19 @@ partial class Scene
             {
                 scene.LightingInfo.ProbeHandshakes.Add(lightProbe.HandShake, lightProbe);
             }
+        }
+
+        public void UpdateLightFrusta(Camera camera, float orthoSize = 1400f)
+        {
+            var sunMatrix = LightingData.SunLightPosition;
+            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix with { Translation = Vector3.Zero })); // why is sun dir calculated like so?.
+
+            var bbox = orthoSize;
+            var sunCameraProjection = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
+            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
+            //sunCameraProj.Translation = Camera.Location;
+
+            SunViewProjection = sunCameraView * sunCameraProjection;
         }
     }
 }
