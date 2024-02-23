@@ -188,15 +188,9 @@ void CalculateDirectLighting(inout LightingTerms_t lighting, inout MaterialPrope
 
         int index = 0;
         visibility = 1.0 - dlsh[index];
-
-        if (sin(g_flTime * 3) > 0)
-            visibility = CalculateSunShadowMapVisibility(mat.PositionWS);
-
     #endif
 
-    #if defined(NoBakeLighting) || (LightmapGameVersionNumber == 0)
-        visibility = CalculateSunShadowMapVisibility(mat.PositionWS);
-    #endif
+    visibility *= CalculateSunShadowMapVisibility(mat.PositionWS);
 
     if (visibility > 0.0001)
     {
