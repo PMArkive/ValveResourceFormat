@@ -289,7 +289,7 @@ namespace GUI.Types.Renderer
             PostSceneLoad();
 
             depthViewer = new GLTextureViewer(this, Scene.GuiContext);
-            Scene.LightingInfo.LightingData.SunLightColor = new Vector4(1, 0.77f, 0.62f, 3.5f);
+            //Scene.LightingInfo.LightingData.SunLightColor = new Vector4(1, 0.77f, 0.62f, 3.5f);
 
             GLLoad -= OnLoad;
             GLPaint += OnPaint;
@@ -302,7 +302,7 @@ namespace GUI.Types.Renderer
             Uptime += e.FrameTime;
             viewBuffer.Data.Time = Uptime;
 
-            Scene.LightingInfo.LightingData.SunLightPosition = Matrix4x4.CreateFromYawPitchRoll(SunYaw * MathF.PI / 180f, SunPitch * MathF.PI / 180f, SunRoll * MathF.PI / 180f);
+            //Scene.LightingInfo.LightingData.SunLightPosition = Matrix4x4.CreateFromYawPitchRoll(SunYaw * MathF.PI / 180f, SunPitch * MathF.PI / 180f, SunRoll * MathF.PI / 180f);
 
             var renderContext = new Scene.RenderContext
             {
@@ -395,11 +395,12 @@ namespace GUI.Types.Renderer
             renderContext.Scene = Scene;
 
             var sunMatrix = Scene.LightingInfo.LightingData.SunLightPosition;
-            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix)); // why is sun dir calculated like so?.
+            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix with { Translation = Vector3.Zero })); // why is sun dir calculated like so?.
 
             var bbox = 1400f;
             var sunCameraProj = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
             var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
+            //sunCameraProj.Translation = Camera.Location;
 
             var sunViewProj = sunCameraView * sunCameraProj;
             viewBuffer.Data.ViewToProjection = sunViewProj;

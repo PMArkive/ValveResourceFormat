@@ -78,7 +78,7 @@
     #define NoBakeLighting 1
 #endif
 
-#if defined(NoBakeLighting) || (LightmapGameVersionNumber == 0)
+//#if defined(NoBakeLighting) || (LightmapGameVersionNumber == 0)
     uniform sampler2DShadow g_tShadowDepthBufferDepth;
 
     float CalculateSunShadowMapVisibility(vec3 vPosition)
@@ -122,7 +122,7 @@
         return visibility;
     }
 
-#endif
+//#endif
 
 vec3 getSunDir()
 {
@@ -188,6 +188,10 @@ void CalculateDirectLighting(inout LightingTerms_t lighting, inout MaterialPrope
 
         int index = 0;
         visibility = 1.0 - dlsh[index];
+
+        if (sin(g_flTime * 3) > 0)
+            visibility = CalculateSunShadowMapVisibility(mat.PositionWS);
+
     #endif
 
     #if defined(NoBakeLighting) || (LightmapGameVersionNumber == 0)

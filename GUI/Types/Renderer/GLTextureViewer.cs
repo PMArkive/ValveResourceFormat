@@ -915,9 +915,9 @@ namespace GUI.Types.Renderer
             OriginalWidth = texture.Width;
             OriginalHeight = texture.Height;
 
-            TextureScale = 4f;
-            Position = Vector2.Zero;
-            Draw(new Framebuffer(texture.Width, texture.Height), false);
+            TextureScale = 1f;
+            Position = new Vector2(0, 0);
+            Draw(new Framebuffer(256, 256), false);
             GL.UseProgram(0);
             GL.BindVertexArray(0);
 
