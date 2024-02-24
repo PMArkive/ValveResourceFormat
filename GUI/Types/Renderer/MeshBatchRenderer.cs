@@ -132,7 +132,6 @@ namespace GUI.Types.Renderer
                 {
                     material?.PostRender();
 
-                    // Todo: replacementmaterial
                     var requestShader = context.ReplacementShader ?? requestMaterial.Shader;
 
                     // If the material did not change, shader could not have changed

@@ -51,7 +51,8 @@ partial class Scene
         public bool EnableDynamicShadows { get; set; } = true;
 
         public Matrix4x4 SunViewProjection { get; internal set; }
-        public Frustum SunLightFrustum = Frustum.CreateEmpty();
+        public Frustum SunLightFrustum = new();
+        public bool UseSceneBoundsForSunLightFrustum { get; set; }
 
         public void SetLightmapTextures(Shader shader)
         {
@@ -125,17 +126,40 @@ partial class Scene
             }
         }
 
-        public void UpdateLightFrusta(Camera camera, float orthoSize = 1400f)
+        public void UpdateSunLightFrustum(Camera camera, float orthoSize = 512f)
         {
             var sunMatrix = LightingData.SunLightPosition;
-            var sunDir = Vector3.Normalize(Vector3.Transform(-Vector3.UnitX, sunMatrix with { Translation = Vector3.Zero })); // why is sun dir calculated like so?.
+            var sunDir = Vector3.Normalize(Vector3.Transform(Vector3.UnitX, sunMatrix with { Translation = Vector3.Zero })); // why is sun dir calculated like so?.
 
             var bbox = orthoSize;
-            var sunCameraProjection = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, bbox, -bbox);
-            var sunCameraView = Matrix4x4.CreateLookAt(sunDir, Vector3.Zero, Vector3.UnitZ);
-            //sunCameraProj.Translation = Camera.Location;
+            var farPlane = 8096f;
+            var nearPlaneExtend = 2000f;
+
+            // Move near plane away from camera, in light direction, to capture shadow casters.
+            // This could be improved using scene bounds.
+            var eye = camera.Location - sunDir * nearPlaneExtend;
+
+            if (UseSceneBoundsForSunLightFrustum)
+            {
+                var staticBounds = scene.StaticOctree.Root.GetBounds();
+                var dynamicBounds = scene.DynamicOctree.Root.GetBounds();
+                var sceneBounds = staticBounds.Union(dynamicBounds);
+                var max = Math.Max(sceneBounds.Size.X, Math.Max(sceneBounds.Size.Y, sceneBounds.Size.Z));
+
+                if (max > 0 && max < orthoSize)
+                {
+                    nearPlaneExtend = max / 2f;
+                    eye = staticBounds.Center - sunDir * nearPlaneExtend;
+                    bbox = max * 1.6f;
+                    farPlane = bbox;
+                }
+            }
+
+            var sunCameraView = Matrix4x4.CreateLookAt(eye, eye + sunDir, Vector3.UnitZ);
+            var sunCameraProjection = Matrix4x4.CreateOrthographicOffCenter(-bbox, bbox, -bbox, bbox, farPlane, -nearPlaneExtend);
 
             SunViewProjection = sunCameraView * sunCameraProjection;
+            SunLightFrustum.Update(SunViewProjection);
         }
     }
 }

@@ -26,7 +26,7 @@ namespace GUI.Types.Renderer
         public float Uptime { get; private set; }
 
         private bool showStaticOctree;
-        private bool showDynamicOctree;
+        private bool showDynamicOctree = true;
         private Frustum lockedCullFrustum;
 
         protected UniformBuffer<ViewConstants> viewBuffer;
@@ -253,6 +253,7 @@ namespace GUI.Types.Renderer
 
             staticOctreeRenderer = new OctreeDebugRenderer<SceneNode>(Scene.StaticOctree, Scene.GuiContext, false);
             dynamicOctreeRenderer = new OctreeDebugRenderer<SceneNode>(Scene.DynamicOctree, Scene.GuiContext, true);
+            dynamicOctreeRenderer.AddFrustum(Scene.LightingInfo.SunLightFrustum);
 
             SetAvailableRenderModes();
         }

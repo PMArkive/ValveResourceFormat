@@ -3,6 +3,7 @@ namespace GUI.Types.Renderer
     class Frustum
     {
         private Vector4[] Planes = new Vector4[6];
+        public Vector3[] Corners = new Vector3[8];
 
         public static Frustum CreateEmpty()
         {
@@ -45,6 +46,14 @@ namespace GUI.Types.Renderer
                 viewProjectionMatrix.M24 - viewProjectionMatrix.M23,
                 viewProjectionMatrix.M34 - viewProjectionMatrix.M33,
                 viewProjectionMatrix.M44 - viewProjectionMatrix.M43));
+
+            Matrix4x4.Invert(viewProjectionMatrix, out var projectionView);
+
+            for (var i = 0; i < 8; i++)
+            {
+                var unitVector = new Vector3(i & 1, (i & 2) >> 1, (i & 4) >> 2) * 2 - Vector3.One;
+                Corners[i] = Vector3.Transform(unitVector, projectionView);
+            }
         }
 
         public Frustum Clone()

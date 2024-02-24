@@ -30,6 +30,7 @@ namespace GUI.Types.Renderer
     {
         private readonly Shader shader;
         private readonly Octree<T> octree;
+        private Frustum frustum;
         private readonly int vaoHandle;
         private readonly int vboHandle;
         private readonly bool dynamic;
@@ -145,6 +146,12 @@ namespace GUI.Types.Renderer
             }
         }
 
+        private static readonly byte[] FrustumLineVertIndices =
+        [
+            0, 1, 1, 2, 2, 3, 3, 0,
+            4, 5, 5, 6, 6, 7, 7, 4,
+            0, 4, 1, 5, 2, 6, 3, 7
+        ];
         private void Rebuild()
         {
             var vertices = new List<SimpleVertex>();

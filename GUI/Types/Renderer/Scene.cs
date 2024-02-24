@@ -257,7 +257,7 @@ namespace GUI.Types.Renderer
                 return;
             }
 
-            LightingInfo.UpdateLightFrusta(camera);
+            LightingInfo.UpdateSunLightFrustum(camera);
 
             foreach (var bucket in CulledShadowDrawCalls.Values)
             {

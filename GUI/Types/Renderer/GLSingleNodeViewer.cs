@@ -76,6 +76,7 @@ namespace GUI.Types.Renderer
             };
 
             Scene.LightingInfo.AddEnvironmentMap(environmentMap);
+            Scene.LightingInfo.UseSceneBoundsForSunLightFrustum = true;
         }
 
         protected override void OnPaint(object sender, RenderEventArgs e)
