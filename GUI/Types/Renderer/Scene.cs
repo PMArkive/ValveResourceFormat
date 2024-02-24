@@ -328,7 +328,7 @@ namespace GUI.Types.Renderer
 
                 foreach (var (program, calls) in CulledShadowDrawCalls)
                 {
-                    renderContext.ReplacementMaterial = depthOnlyMaterials[(int)program];
+                    //renderContext.ReplacementShader = depthOnlyMaterials[(int)program].Shader;
                     MeshBatchRenderer.Render(calls, renderContext);
                 }
             }

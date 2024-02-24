@@ -4,8 +4,13 @@
 
 #define D_ANIMATED 0 // should also set bAnimated uniform
 #define D_MORPHED 0 // should also set F_MORPH_SUPPORTED define
+#define F_ALPHA_TEST 0
 
 layout (location = 0) in vec3 vPOSITION;
+#if (F_ALPHA_TEST == 1)
+    layout (location = 3) in vec2 vTEXCOORD;
+    layout (location = 0) out vec2 texCoord;
+#endif
 #include "common/animation.glsl"
 #include "common/morph.glsl"
 
@@ -22,6 +27,10 @@ void main()
 
     #if (D_MORPHED == 1)
         vertexPosition += getMorphOffset();
+    #endif
+
+    #if (F_ALPHA_TEST == 1)
+        texCoord = vTEXCOORD;
     #endif
 
     vec4 fragPosition = vertexTransform * vec4(vertexPosition, 1.0);
