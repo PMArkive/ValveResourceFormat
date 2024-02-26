@@ -1,5 +1,7 @@
 #version 460
 
+#define F_TRANSLUCENT 0
+
 in vec4 vtxColor;
 layout (location = 0) out vec4 outputColor;
 

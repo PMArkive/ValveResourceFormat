@@ -258,8 +258,6 @@ namespace GUI.Types.Renderer
 
             if (IsTranslucent)
             {
-                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
                 GL.Enable(EnableCap.PolygonOffsetLine);
                 GL.Enable(EnableCap.PolygonOffsetFill);
                 GL.PolygonOffsetClamp(0, 96, 0.0005f);

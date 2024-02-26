@@ -9,7 +9,9 @@ in vec2 vTexCoordOut;
 uniform float g_flAlphaTestReference;
 uniform sampler2D g_tColor;
 
-out vec4 outputColor;
+layout (location = 0) out vec4 outputColor;
+
+#include "common/translucent.glsl"
 
 void main()
 {
@@ -23,4 +25,5 @@ void main()
 #endif
 
     outputColor = color;
+    outputColor = WeightColorTranslucency(outputColor);
 }
