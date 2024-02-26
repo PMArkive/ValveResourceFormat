@@ -468,6 +468,7 @@ namespace GUI.Types.Renderer
             GL.BindVertexArray(PostProcessVao);
             GL.DrawArrays(PrimitiveType.TriangleFan, 0, 4);
             GL.UseProgram(0);
+            GL.BindVertexArray(0);
 
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
