@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Hashing;
@@ -24,6 +25,8 @@ namespace GUI.Types.Renderer
         private RenderTexture DefaultMask;
         public static float MaxTextureMaxAnisotropy { get; set; }
         public int MaterialCount => Materials.Count;
+
+        public readonly BlockingCollection<(string name, bool srgb, RenderTexture renderTexture)> TextureQueue = [];
 
         private readonly Dictionary<string, string[]> TextureAliases = new()
         {
@@ -149,6 +152,14 @@ namespace GUI.Types.Renderer
 
         private RenderTexture LoadTexture(string name, bool srgbRead = false)
         {
+            var placeholder = GetErrorTexture();
+            var texture = new RenderTexture(TextureTarget.Texture2D, placeholder.Handle, placeholder.Width, placeholder.Height, placeholder.Depth, placeholder.NumMipLevels);
+
+            TextureQueue.Add(new(name, srgbRead, texture));
+
+            return texture;
+
+            /*
             var textureResource = VrfGuiContext.LoadFileCompiled(name);
 
             if (textureResource == null)
@@ -157,6 +168,7 @@ namespace GUI.Types.Renderer
             }
 
             return LoadTexture(textureResource, srgbRead);
+            */
         }
 
 #pragma warning disable CA1822 // Mark members as static

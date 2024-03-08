@@ -5,15 +5,15 @@ namespace GUI.Types.Renderer
 {
     class RenderTexture //: IDisposable
     {
-        public TextureTarget Target { get; }
-        public int Handle { get; }
+        public TextureTarget Target { get; private set; }
+        public int Handle { get; private set; }
 
-        public Texture.SpritesheetData SpriteSheetData { get; }
+        public Texture.SpritesheetData SpriteSheetData { get; private set; }
 
-        public int Width { get; }
-        public int Height { get; }
-        public int Depth { get; }
-        public int NumMipLevels { get; }
+        public int Width { get; private set; }
+        public int Height { get; private set; }
+        public int Depth { get; private set; }
+        public int NumMipLevels { get; private set; }
 
         RenderTexture(TextureTarget target)
         {
@@ -38,6 +38,27 @@ namespace GUI.Types.Renderer
             Height = height;
             Depth = depth;
             NumMipLevels = mipcount;
+        }
+
+        public RenderTexture(TextureTarget target, int handle, int width, int height, int depth, int mipcount)
+        {
+            Target = target;
+            Handle = handle;
+            Width = width;
+            Height = height;
+            Depth = depth;
+            NumMipLevels = mipcount;
+        }
+
+        public void ReplaceWith(RenderTexture other)
+        {
+            Target = other.Target;
+            Handle = other.Handle;
+            Width = other.Width;
+            Height = other.Height;
+            Depth = other.Depth;
+            NumMipLevels = other.NumMipLevels;
+            SpriteSheetData = other.SpriteSheetData;
         }
 
         public void SetWrapMode(TextureWrapMode wrap)

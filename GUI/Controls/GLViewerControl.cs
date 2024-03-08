@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using GUI.Types.Renderer;
 using GUI.Utils;
@@ -20,6 +21,9 @@ namespace GUI.Controls
         static readonly TimeSpan FpsUpdateTimeSpan = TimeSpan.FromSeconds(0.1);
 
         public GLControl GLControl { get; }
+
+        private Thread SecondaryGLThread;
+        private GLControl SecondaryGLControl;
 
         public struct RenderEventArgs
         {
@@ -54,6 +58,8 @@ namespace GUI.Controls
 
         public GLViewerControl(VrfGuiContext guiContext)
         {
+            this.guiContext = guiContext;
+
             InitializeComponent();
 
             Camera = new Camera();
@@ -87,6 +93,8 @@ namespace GUI.Controls
 
             textRenderer = new(guiContext);
 
+            CreateSecondaryThread();
+
 #if DEBUG
             guiContext.ShaderLoader.EnableHotReload(GLControl);
 
@@ -104,6 +112,56 @@ namespace GUI.Controls
 
             AddControl(button);
 #endif
+        }
+
+        private void CreateSecondaryThread()
+        {
+            SecondaryGLThread = new Thread(SecondaryThreadMethod)
+            {
+                IsBackground = true,
+                Name = nameof(GLTextureDecoder),
+                Priority = ThreadPriority.AboveNormal,
+            };
+            SecondaryGLThread.Start();
+        }
+
+        private void SecondaryThreadMethod()
+        {
+            SecondaryGLControl = new GLControl(new GraphicsMode(new ColorFormat(8, 8, 8, 8)), 4, 6, GraphicsContextFlags.Offscreen);
+            SecondaryGLControl.MakeCurrent();
+
+            var queue = guiContext.MaterialLoader.TextureQueue;
+            var count = 0;
+
+            while (!queue.IsCompleted)
+            {
+                try
+                {
+                    var (name, srgbRead, renderTexture) = queue.Take();
+
+                    var textureResource = guiContext.LoadFileCompiled(name);
+
+                    if (textureResource == null)
+                    {
+                        continue;
+                    }
+
+                    var renderTextureTemp = guiContext.MaterialLoader.LoadTexture(textureResource, srgbRead);
+
+                    GL.Flush();
+                    GL.Finish();
+
+                    renderTexture.ReplaceWith(renderTextureTemp);
+
+                    count++;
+                }
+                catch (InvalidOperationException)
+                {
+                    //
+                }
+            }
+
+            Log.Debug("test", $"secondary gl thread exiting, loaded {count} textures");
         }
 
         protected virtual void OnKeyDown(object sender, KeyEventArgs e)
@@ -368,7 +426,7 @@ namespace GUI.Controls
         }
 
         private static readonly DebugProc OpenGLDebugMessageDelegate = OnDebugMessage;
-
+        private readonly VrfGuiContext guiContext;
         public Framebuffer GLDefaultFramebuffer;
         public Framebuffer MainFramebuffer;
         private int MaxSamples;
@@ -443,6 +501,8 @@ namespace GUI.Controls
             HandleResize();
             GLPostLoad?.Invoke(this);
             GLPostLoad = null;
+
+            guiContext.MaterialLoader.TextureQueue.CompleteAdding();
 
             lastUpdate = Stopwatch.GetTimestamp();
         }
