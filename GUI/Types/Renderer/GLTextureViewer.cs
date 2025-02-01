@@ -60,7 +60,6 @@ namespace GUI.Types.Renderer
         private bool VisualizeTiling;
         private ChannelMapping SelectedChannels = ChannelMapping.RGB;
         private ChannelSplitting ChannelSplitMode;
-        private int ChannelSplitImageCount => 1 << (int)ChannelSplitMode;
         private CubemapProjection CubemapProjectionType;
         private TextureCodec decodeFlags;
         private const TextureCodec softwareDecodeOnlyOptions = TextureCodec.ForceLDR;
@@ -106,6 +105,9 @@ namespace GUI.Types.Renderer
         private bool IsZoomedIn;
         private bool MovedFromOrigin_Unzoomed;
 
+        private int LastRenderHash;
+        private int NumRendersLastHash;
+
         const int DefaultSelection = 3;
         static readonly (ChannelMapping Channels, ChannelSplitting ChannelSplitMode, string ChoiceString)[] ChannelsComboBoxOrder = [
             (ChannelMapping.R, ChannelSplitting.None, "Red"),
@@ -137,6 +139,11 @@ namespace GUI.Types.Renderer
             };
 
             resetButton.Click += (_, __) => ResetZoom();
+
+            guiContext.ShaderLoader.ShaderHotReload.ReloadShader += (_, _) =>
+            {
+                NumRendersLastHash = 0;
+            };
 
             AddControl(resetButton);
         }
@@ -963,9 +970,38 @@ namespace GUI.Types.Renderer
 
             TextureScaleChangeTime += e.FrameTime;
 
-            GL.Viewport(0, 0, GLControl.Width, GLControl.Height);
-            MainFramebuffer.BindAndClear();
-            Draw(MainFramebuffer);
+            var renderHash = HashCode.Combine(
+                HashCode.Combine(
+                    NextBitmapVersion,
+                    GetCurrentPositionAndScale(),
+                    SelectedMip,
+                    SelectedDepth,
+                    SelectedCubeFace,
+                    SelectedChannels.PackedValue,
+                    ChannelSplitMode
+                ),
+                decodeFlags,
+                VisualizeTiling,
+                ShowLightBackground,
+                MainFramebuffer.Width,
+                MainFramebuffer.Height
+            );
+
+            if (renderHash != LastRenderHash)
+            {
+                NumRendersLastHash = 0;
+            }
+
+            const int NumBackBuffers = 2;
+            if (NumRendersLastHash < NumBackBuffers)
+            {
+                GL.Viewport(0, 0, GLControl.Width, GLControl.Height);
+                MainFramebuffer.BindAndClear();
+                Draw(MainFramebuffer);
+
+                LastRenderHash = renderHash;
+                NumRendersLastHash++;
+            }
         }
 
         private void Draw(Framebuffer fbo, bool captureFullSizeImage = false)
