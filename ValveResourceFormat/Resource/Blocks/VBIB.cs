@@ -530,7 +530,8 @@ namespace ValveResourceFormat.Blocks
 
         public static Vector4[] GetBlendWeightsArray(OnDiskBufferData vertexBuffer, RenderInputLayoutField attribute)
         {
-            var weights = new Vector4[vertexBuffer.ElementCount];
+            var numVectors = attribute.Format is DXGI_FORMAT.R16G16B16A16_UNORM ? 2 : 1;
+            var weights = new Vector4[vertexBuffer.ElementCount * numVectors];
 
             var offset = (int)attribute.Offset;
             var data = vertexBuffer.Data.AsSpan();
@@ -549,6 +550,19 @@ namespace ValveResourceFormat.Blocks
                             );
 
                             weights[i] /= 255f;
+                            offset += (int)vertexBuffer.ElementSizeInBytes;
+                        }
+
+                        break;
+                    }
+
+                case DXGI_FORMAT.R16G16B16A16_UNORM:
+                    {
+                        for (var i = 0; i < vertexBuffer.ElementCount; i += 2)
+                        {
+                            weights[i] = new Vector4(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]) / 255f;
+                            weights[i + 1] = new Vector4(data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]) / 255f;
+
                             offset += (int)vertexBuffer.ElementSizeInBytes;
                         }
 
