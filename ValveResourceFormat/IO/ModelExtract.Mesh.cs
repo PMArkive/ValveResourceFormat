@@ -245,7 +245,7 @@ partial class ModelExtract
         return aggModelName[..^vmdlExt.Length] + "_draw" + drawCallIndex + vmdlExt;
     }
 
-    private static void FillDatamodelVertexData(VBIB.OnDiskBufferData vertexBuffer, DmeVertexData vertexData, Material.VsInputSignature materialInputSignature)
+    private static void FillDatamodelVertexData(VBIB.OnDiskBufferData vertexBuffer, DmeVertexData vertexData, Material.VsInputSignature materialInputSignature, int numJoints)
     {
         var indices = Enumerable.Range(0, (int)vertexBuffer.ElementCount).ToArray(); // May break with non-unit strides, non-tri faces
 
@@ -268,7 +268,7 @@ partial class ModelExtract
             }
             else if (attribute.SemanticName is "BLENDINDICES")
             {
-                vertexData.JointCount = 4;
+                vertexData.JointCount = numJoints;
 
                 var blendIndices = VBIB.GetBlendIndicesArray(vertexBuffer, attribute);
                 vertexData.AddStream(semantic, Array.ConvertAll(blendIndices, i => (int)i));
@@ -403,9 +403,11 @@ partial class ModelExtract
             }
         }
 
+        var numJoints = mesh.Data.GetSubCollection("m_skeleton").GetInt32Property("m_nBoneWeightCount");
+
         for (var i = 0; i < mbuf.VertexBuffers.Count; i++)
         {
-            FillDatamodelVertexData(mbuf.VertexBuffers[i], dmeVertexBuffers[i], materialInputSignature);
+            FillDatamodelVertexData(mbuf.VertexBuffers[i], dmeVertexBuffers[i], materialInputSignature, numJoints);
         }
 
         TieElementRoot(datamodel, dmeModel);

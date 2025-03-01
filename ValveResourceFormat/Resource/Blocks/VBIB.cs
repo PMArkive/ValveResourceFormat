@@ -449,7 +449,7 @@ namespace ValveResourceFormat.Blocks
 
         public static ushort[] GetBlendIndicesArray(OnDiskBufferData vertexBuffer, RenderInputLayoutField attribute)
         {
-            const int numJoints = 4;
+            var numJoints = attribute.Format is DXGI_FORMAT.R32G32B32A32_SINT or DXGI_FORMAT.R16G16B16A16_UINT ? 8 : 4;
             var indices = new ushort[vertexBuffer.ElementCount * numJoints];
 
             var offset = (int)attribute.Offset;
@@ -481,17 +481,19 @@ namespace ValveResourceFormat.Blocks
                     }
 
                 case DXGI_FORMAT.R16G16B16A16_SINT:
+                case DXGI_FORMAT.R32G32B32A32_SINT: // 8 joints
                     {
                         for (var i = 0; i < vertexBuffer.ElementCount; i++)
                         {
                             var ushorts = MemoryMarshal.Cast<byte, ushort>(data.Slice(offset, numJoints * sizeof(ushort)));
-                            System.Diagnostics.Debug.Assert(ushorts[0] <= short.MaxValue);
-                            System.Diagnostics.Debug.Assert(ushorts[1] <= short.MaxValue);
-                            System.Diagnostics.Debug.Assert(ushorts[2] <= short.MaxValue);
-                            System.Diagnostics.Debug.Assert(ushorts[3] <= short.MaxValue);
+#if DEBUG
+                            for (var j = 0; j < numJoints; j++)
+                            {
+                                System.Diagnostics.Debug.Assert(ushorts[j] <= short.MaxValue);
+                            }
+#endif
 
                             ushorts.CopyTo(indices.AsSpan(i * numJoints, numJoints));
-
                             offset += (int)vertexBuffer.ElementSizeInBytes;
                         }
 
@@ -499,22 +501,19 @@ namespace ValveResourceFormat.Blocks
                     }
 
                 case DXGI_FORMAT.R8G8B8A8_UINT:
+                case DXGI_FORMAT.R16G16B16A16_UINT: // 8 joints
                     {
                         var inc = 0;
 
                         for (var i = 0; i < vertexBuffer.ElementCount; i++)
                         {
-                            var bytes = data.Slice(offset, 4);
-                            System.Diagnostics.Debug.Assert(bytes[0] >= 0);
-                            System.Diagnostics.Debug.Assert(bytes[1] >= 0);
-                            System.Diagnostics.Debug.Assert(bytes[2] >= 0);
-                            System.Diagnostics.Debug.Assert(bytes[3] >= 0);
+                            var bytes = data.Slice(offset, numJoints);
 
-                            // Note: implicit casting from byte to ushort
-                            indices[inc++] = bytes[0];
-                            indices[inc++] = bytes[1];
-                            indices[inc++] = bytes[2];
-                            indices[inc++] = bytes[3];
+                            for (var j = 0; j < numJoints; j++)
+                            {
+                                System.Diagnostics.Debug.Assert(bytes[j] >= 0);
+                                indices[inc++] = bytes[j]; // Note: implicit casting from byte to ushort
+                            }
 
                             offset += (int)vertexBuffer.ElementSizeInBytes;
                         }
