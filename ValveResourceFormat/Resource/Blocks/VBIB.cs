@@ -40,6 +40,13 @@ namespace ValveResourceFormat.Blocks
             public int Slot;
             public RenderSlotType SlotType;
             public int InstanceStepRate;
+
+            public readonly bool IsEightBonePackedFormat => SemanticName switch
+            {
+                "BLENDINDICES" => Format is DXGI_FORMAT.R32G32B32A32_SINT or DXGI_FORMAT.R16G16B16A16_UINT,
+                "BLENDWEIGHT" => Format is DXGI_FORMAT.R16G16B16A16_UNORM,
+                _ => false,
+            };
         }
 #pragma warning restore CA1051 // Do not declare visible instance fields
 
