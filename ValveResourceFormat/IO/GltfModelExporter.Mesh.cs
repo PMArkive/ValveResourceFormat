@@ -53,6 +53,20 @@ public partial class GltfModelExporter
         return mesh;
     }
 
+    private static (T[] Buffer0, T[] Buffer1) SplitBuffer<T>(T[] buffer)
+    {
+        var buffer0 = new T[buffer.Length / 2];
+        var buffer1 = new T[buffer.Length / 2];
+
+        for (var i = 0; i < buffer.Length; i += 2)
+        {
+            buffer0[i / 2] = buffer[i];
+            buffer1[i / 2] = buffer[i + 1];
+        }
+
+        return (buffer0, buffer1);
+    }
+
     private static Dictionary<string, Accessor>[] CreateVertexBufferAccessors(ModelRoot exportedModel, VBIB vbib, bool includeJoints)
     {
         return vbib.VertexBuffers.Select((vertexBuffer, vertexBufferIndex) =>
@@ -133,17 +147,53 @@ public partial class GltfModelExporter
                 {
                     actualJointsCount = attributeFormat.ElementCount;
 
-                    var indices = VBIB.GetBlendIndicesArray(vertexBuffer, attribute);
+                    var joints = VBIB.GetBlendIndicesArray(vertexBuffer, attribute);
+                    var bufferView = exportedModel.CreateBufferView(2 * joints.Length, 0, BufferMode.ARRAY_BUFFER);
 
-                    var bufferView = exportedModel.CreateBufferView(2 * indices.Length, 0, BufferMode.ARRAY_BUFFER);
-                    indices.CopyTo(MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)bufferView.Content).Span));
+                    if (attribute.IsEightBonePackedFormat)
+                    {
+                        actualJointsCount = 8;
+
+                        var (joints0, joints1) = SplitBuffer(joints);
+
+                        // reuse the original joints array
+                        // we will create one bufferview, and provide an offset for the second accessor
+                        joints0.CopyTo(joints.AsSpan(0, joints0.Length));
+                        joints1.CopyTo(joints.AsSpan(joints0.Length));
+                    }
+
+                    joints.CopyTo(MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)bufferView.Content).Span));
+
+
+                    if (attribute.IsEightBonePackedFormat)
+                    {
+                        var accessor0 = exportedModel.CreateAccessor();
+                        var accessor1 = exportedModel.CreateAccessor();
+
+                        accessor0.SetVertexData(bufferView, 0, joints.Length / 8, DimensionType.VEC4, EncodingType.UNSIGNED_SHORT);
+                        accessor1.SetVertexData(bufferView, joints.Length, joints.Length / 8, DimensionType.VEC4, EncodingType.UNSIGNED_SHORT);
+
+                        accessors["JOINTS_0"] = accessor0;
+                        accessors["JOINTS_1"] = accessor1;
+                        continue;
+                    }
+
                     var accessor = exportedModel.CreateAccessor();
-                    accessor.SetVertexData(bufferView, 0, indices.Length / 4, DimensionType.VEC4, EncodingType.UNSIGNED_SHORT);
+                    accessor.SetVertexData(bufferView, 0, joints.Length / 4, DimensionType.VEC4, EncodingType.UNSIGNED_SHORT);
                     accessors[accessorName] = accessor;
                 }
                 else if (attribute.SemanticName is "BLENDWEIGHT" or "BLENDWEIGHTS")
                 {
                     var weights = VBIB.GetBlendWeightsArray(vertexBuffer, attribute);
+
+                    if (attribute.IsEightBonePackedFormat)
+                    {
+                        var (weights0, weights1) = SplitBuffer(weights);
+                        accessors["WEIGHTS_0"] = CreateAccessor(exportedModel, weights0);
+                        accessors["WEIGHTS_1"] = CreateAccessor(exportedModel, weights1);
+                        continue;
+                    }
+
                     accessors[accessorName] = CreateAccessor(exportedModel, weights);
                 }
                 else
@@ -192,72 +242,78 @@ public partial class GltfModelExporter
                 }
             }
 
-            if (accessors.TryGetValue("JOINTS_0", out var jointAccessor))
-            {
-                // For some reason models can have joints but no weights, check if that is the case
-                if (!accessors.TryGetValue("WEIGHTS_0", out var weightsAccessor))
-                {
-                    // If this occurs, give default weights
-                    var baseWeight = 1f / actualJointsCount;
-                    var baseWeights = new Vector4(
-                        actualJointsCount > 0 ? baseWeight : 0,
-                        actualJointsCount > 1 ? baseWeight : 0,
-                        actualJointsCount > 2 ? baseWeight : 0,
-                        actualJointsCount > 3 ? baseWeight : 0
-                    );
-                    var defaultWeights = Enumerable.Repeat(baseWeights, jointAccessor.Count).ToList();
-
-                    var bufferView = exportedModel.CreateBufferView(16 * defaultWeights.Count, 0, BufferMode.ARRAY_BUFFER);
-                    new Vector4Array(bufferView.Content).Fill(defaultWeights);
-                    weightsAccessor = exportedModel.CreateAccessor();
-                    weightsAccessor.SetVertexData(bufferView, 0, defaultWeights.Count, DimensionType.VEC4);
-                    accessors["WEIGHTS_0"] = weightsAccessor;
-                }
-
-                var joints = MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)jointAccessor.SourceBufferView.Content).Span);
-                var weights = MemoryMarshal.Cast<byte, float>(((Memory<byte>)weightsAccessor.SourceBufferView.Content).Span);
-
-                for (var i = 0; i < joints.Length; i += 4)
-                {
-                    // remove joints without weights
-                    for (var j = 0; j < 4; j++)
-                    {
-                        if (weights[i + j] == 0)
-                        {
-                            joints[i + j] = 0;
-                        }
-                    }
-
-                    // remove duplicate joints
-                    for (var j = 2; j >= 0; j--)
-                    {
-                        for (var k = 3; k > j; k--)
-                        {
-                            if (joints[i + j] == joints[i + k])
-                            {
-                                for (var l = k; l < 3; l++)
-                                {
-                                    joints[i + l] = joints[i + l + 1];
-                                }
-                                joints[i + 3] = 0;
-
-                                weights[i + j] += weights[i + k];
-                                for (var l = k; l < 3; l++)
-                                {
-                                    weights[i + l] = weights[i + l + 1];
-                                }
-                                weights[i + 3] = 0;
-                            }
-                        }
-                    }
-                }
-
-                jointAccessor.UpdateBounds();
-                weightsAccessor.UpdateBounds();
-            }
+            FixModelJoints(exportedModel, accessors, actualJointsCount, 0);
+            FixModelJoints(exportedModel, accessors, actualJointsCount, 1);
 
             return accessors;
         }).ToArray();
+    }
+
+    private static void FixModelJoints(ModelRoot exportedModel, Dictionary<string, Accessor> accessors, int actualJointsCount, int bufferIndex)
+    {
+        if (accessors.TryGetValue($"JOINTS_{bufferIndex}", out var jointAccessor))
+        {
+            // For some reason models can have joints but no weights, check if that is the case
+            if (!accessors.TryGetValue($"WEIGHTS_{bufferIndex}", out var weightsAccessor))
+            {
+                // If this occurs, give default weights
+                var baseWeight = 1f / actualJointsCount;
+                var baseWeights = new Vector4(
+                    actualJointsCount > 0 ? baseWeight : 0,
+                    actualJointsCount > 1 ? baseWeight : 0,
+                    actualJointsCount > 2 ? baseWeight : 0,
+                    actualJointsCount > 3 ? baseWeight : 0
+                );
+                var defaultWeights = Enumerable.Repeat(baseWeights, jointAccessor.Count).ToList();
+
+                var bufferView = exportedModel.CreateBufferView(16 * defaultWeights.Count, 0, BufferMode.ARRAY_BUFFER);
+                new Vector4Array(bufferView.Content).Fill(defaultWeights);
+                weightsAccessor = exportedModel.CreateAccessor();
+                weightsAccessor.SetVertexData(bufferView, 0, defaultWeights.Count, DimensionType.VEC4);
+                accessors[$"WEIGHTS_{bufferIndex}"] = weightsAccessor;
+            }
+
+            var joints = MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)jointAccessor.SourceBufferView.Content).Span[jointAccessor.ByteOffset..])[..(jointAccessor.Count * 4)];
+            var weights = MemoryMarshal.Cast<byte, float>(((Memory<byte>)weightsAccessor.SourceBufferView.Content).Span[weightsAccessor.ByteOffset..])[..(weightsAccessor.Count * 4)];
+
+            for (var i = 0; i < joints.Length; i += 4)
+            {
+                // remove joints without weights
+                for (var j = 0; j < 4; j++)
+                {
+                    if (weights[i + j] == 0)
+                    {
+                        joints[i + j] = 0;
+                    }
+                }
+
+                // remove duplicate joints
+                for (var j = 2; j >= 0; j--)
+                {
+                    for (var k = 3; k > j; k--)
+                    {
+                        if (joints[i + j] == joints[i + k])
+                        {
+                            for (var l = k; l < 3; l++)
+                            {
+                                joints[i + l] = joints[i + l + 1];
+                            }
+                            joints[i + 3] = 0;
+
+                            weights[i + j] += weights[i + k];
+                            for (var l = k; l < 3; l++)
+                            {
+                                weights[i + l] = weights[i + l + 1];
+                            }
+                            weights[i + 3] = 0;
+                        }
+                    }
+                }
+            }
+
+            jointAccessor.UpdateBounds();
+            weightsAccessor.UpdateBounds();
+        }
     }
 
     private MeshPrimitive CreateMeshFromDrawCall(KVObject drawCall, Mesh mesh, VBIB vbib, Dictionary<string, Accessor>[] vertexBufferAccessors, ModelRoot exportedModel, string skinMaterialPath)
