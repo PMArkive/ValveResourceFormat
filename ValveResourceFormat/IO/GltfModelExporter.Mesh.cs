@@ -55,10 +55,15 @@ public partial class GltfModelExporter
 
     private static (T[] Buffer0, T[] Buffer1) SplitBuffer<T>(T[] buffer)
     {
+        if (buffer.Length % 2 != 0)
+        {
+            throw new InvalidDataException("Buffer must be divisible by two.");
+        }
+
         var buffer0 = new T[buffer.Length / 2];
         var buffer1 = new T[buffer.Length / 2];
 
-        for (var i = 0; i < buffer.Length; i += 2)
+        for (var i = 0; i < buffer.Length - 1; i += 2)
         {
             buffer0[i / 2] = buffer[i];
             buffer1[i / 2] = buffer[i + 1];
