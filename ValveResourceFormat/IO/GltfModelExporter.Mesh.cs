@@ -53,25 +53,6 @@ public partial class GltfModelExporter
         return mesh;
     }
 
-    private static (T[] Buffer0, T[] Buffer1) SplitBuffer<T>(T[] buffer)
-    {
-        if (buffer.Length % 2 != 0)
-        {
-            throw new InvalidDataException("Buffer must be divisible by two.");
-        }
-
-        var buffer0 = new T[buffer.Length / 2];
-        var buffer1 = new T[buffer.Length / 2];
-
-        for (var i = 0; i < buffer.Length - 1; i += 2)
-        {
-            buffer0[i / 2] = buffer[i];
-            buffer1[i / 2] = buffer[i + 1];
-        }
-
-        return (buffer0, buffer1);
-    }
-
     private static Dictionary<string, Accessor>[] CreateVertexBufferAccessors(ModelRoot exportedModel, VBIB vbib, bool includeJoints)
     {
         return vbib.VertexBuffers.Select((vertexBuffer, vertexBufferIndex) =>
@@ -153,25 +134,29 @@ public partial class GltfModelExporter
                     actualJointsCount = attributeFormat.ElementCount;
 
                     var joints = VBIB.GetBlendIndicesArray(vertexBuffer, attribute);
-                    var bufferView = exportedModel.CreateBufferView(2 * joints.Length, 0, BufferMode.ARRAY_BUFFER);
+                    var bufferView = exportedModel.CreateBufferView(2 * joints.Length, 8, BufferMode.ARRAY_BUFFER);
+                    var bufferViewShorts = MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)bufferView.Content).Span);
 
                     if (attribute.IsEightBonePackedFormat)
                     {
                         actualJointsCount = 8;
 
-                        var (joints0, joints1) = SplitBuffer(joints);
+                        var joints0 = 0;
+                        var joints1 = joints.Length / 2;
 
-                        // reuse the original joints array
-                        // we will create one bufferview, and provide an offset for the second accessor
-                        joints0.CopyTo(joints.AsSpan(0, joints0.Length));
-                        joints1.CopyTo(joints.AsSpan(joints0.Length));
-                    }
+                        for (var i = 0; i < joints.Length - 8; i += 8)
+                        {
+                            bufferViewShorts[joints0++] = joints[i];
+                            bufferViewShorts[joints0++] = joints[i + 1];
+                            bufferViewShorts[joints0++] = joints[i + 2];
+                            bufferViewShorts[joints0++] = joints[i + 3];
 
-                    joints.CopyTo(MemoryMarshal.Cast<byte, ushort>(((Memory<byte>)bufferView.Content).Span));
+                            bufferViewShorts[joints1++] = joints[i + 4];
+                            bufferViewShorts[joints1++] = joints[i + 5];
+                            bufferViewShorts[joints1++] = joints[i + 6];
+                            bufferViewShorts[joints1++] = joints[i + 7];
+                        }
 
-
-                    if (attribute.IsEightBonePackedFormat)
-                    {
                         var accessor0 = exportedModel.CreateAccessor();
                         var accessor1 = exportedModel.CreateAccessor();
 
@@ -180,8 +165,11 @@ public partial class GltfModelExporter
 
                         accessors["JOINTS_0"] = accessor0;
                         accessors["JOINTS_1"] = accessor1;
+
                         continue;
                     }
+
+                    joints.CopyTo(bufferViewShorts);
 
                     var accessor = exportedModel.CreateAccessor();
                     accessor.SetVertexData(bufferView, 0, joints.Length / 4, DimensionType.VEC4, EncodingType.UNSIGNED_SHORT);
@@ -193,9 +181,18 @@ public partial class GltfModelExporter
 
                     if (attribute.IsEightBonePackedFormat)
                     {
-                        var (weights0, weights1) = SplitBuffer(weights);
+                        var weights0 = new Vector4[weights.Length / 2];
+                        var weights1 = new Vector4[weights.Length / 2];
+
+                        for (var i = 0; i < weights.Length - 1; i += 2)
+                        {
+                            weights0[i / 2] = weights[i];
+                            weights1[i / 2] = weights[i + 1];
+                        }
+
                         accessors["WEIGHTS_0"] = CreateAccessor(exportedModel, weights0);
                         accessors["WEIGHTS_1"] = CreateAccessor(exportedModel, weights1);
+
                         continue;
                     }
 
