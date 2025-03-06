@@ -41,6 +41,7 @@ namespace ValveResourceFormat.Blocks
             public RenderSlotType SlotType;
             public int InstanceStepRate;
 
+            // TODO: Probably should be checking the m_nBoneWeightCount value instead
             public readonly bool IsEightBonePackedFormat => SemanticName switch
             {
                 "BLENDINDICES" => Format is DXGI_FORMAT.R32G32B32A32_SINT or DXGI_FORMAT.R16G16B16A16_UINT,
