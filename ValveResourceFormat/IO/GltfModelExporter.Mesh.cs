@@ -571,11 +571,22 @@ public partial class GltfModelExporter
         }
     }
 
+    /// <summary>
+    /// Processes joint and weight data to ensure consistency by:
+    /// 1. Setting joints with zero weights to zero (no influence)
+    /// 2. Merging weights of duplicate joint references
+    /// 3. Ensuring valid data is packed into consecutive positions
+    /// </summary>
+    /// <param name="joints">Array of joint indices (ushort), organized in groups of size jointCount</param>
+    /// <param name="weights">Array of weight values (float), corresponding to each joint</param>
+    /// <param name="jointCount">Number of joints per vertex (typically 4 or 8)</param>
     internal static void FixDuplicateJoints(Span<ushort> joints, Span<float> weights, int jointCount)
     {
+        // Process each group of joints (each group corresponds to one vertex)
         for (var i = 0; i < joints.Length; i += jointCount)
         {
-            // remove joints without weights
+            // Step 1: Clean up joints with zero weights
+            // If a weight is zero, set its corresponding joint to zero (no influence)
             for (var j = 0; j < jointCount; j++)
             {
                 if (weights[i + j] == 0)
@@ -584,26 +595,38 @@ public partial class GltfModelExporter
                 }
             }
 
-            // remove duplicate joints
+            // Step 2: Handle duplicate joint references within each group
+            // Start from second-to-last joint and work backwards (j decreases)
             for (var j = jointCount - 2; j >= 0; j--)
             {
+                // For each joint at position j, check all joints after it for duplicates
+                // Start from the last joint and work backwards (k decreases)
                 for (var k = jointCount - 1; k > j; k--)
                 {
+                    // If we found a duplicate joint reference
                     if (joints[i + j] == joints[i + k])
                     {
+                        // Step 3: Shift all joints after position k one position left
+                        // This effectively removes the duplicate at position k
                         for (var l = k; l < jointCount - 1; l++)
                         {
                             joints[i + l] = joints[i + l + 1];
                         }
 
+                        // Zero out the last position which is now unused
                         joints[i + jointCount - 1] = 0;
+
+                        // Step 4: Combine the weights - add the duplicate's weight to the original
                         weights[i + j] += weights[i + k];
 
+                        // Step 5: Shift all weights after position k one position left
+                        // Just like we did for the joints
                         for (var l = k; l < jointCount - 1; l++)
                         {
                             weights[i + l] = weights[i + l + 1];
                         }
 
+                        // Zero out the last weight position
                         weights[i + jointCount - 1] = 0;
                     }
                 }
