@@ -3,6 +3,9 @@
 using System.Runtime.InteropServices;
 using SkiaSharp;
 
+using UShortColor = (ushort Red, ushort Green, ushort Blue);
+using IntColor = (int Red, int Green, int Blue);
+
 namespace ValveResourceFormat.TextureDecoders
 {
     internal class DecodeBC6H : CommonBPTC, ITextureDecoder
@@ -52,14 +55,14 @@ namespace ValveResourceFormat.TextureDecoders
 
             var header = MemoryMarshal.Read<UInt128>(@in);
 
-            static uint GetValue(UInt128 header, int offset, int length)
+            static int GetValue(UInt128 header, int offset, int length)
             {
-                return (uint)((header >> offset) & ((1u << length) - 1));
+                return (int)((header >> offset) & ((1u << length) - 1));
             }
 
             ulong Bit(int p)
             {
-                return GetValue(header, p, 1);
+                return GetValue(header, p, 1) == 1 ? 1u : 0u;
             }
 
             ushort decvalue;
@@ -78,8 +81,11 @@ namespace ValveResourceFormat.TextureDecoders
 
             var region = 0; // one or two
             var mode = 0;
+
             ushort wBits = 0;
-            (ushort Red, ushort Green, ushort Blue) tBits = (0, 0, 0);
+
+            UShortColor tBits = (0, 0, 0);
+            (IntColor W, IntColor X, IntColor Y, IntColor Z) endpoints2;
 
             byte pb = 0;
             ulong ib = 0;
@@ -89,9 +95,18 @@ namespace ValveResourceFormat.TextureDecoders
                 mode = 1;
                 wBits = 10;
                 tBits = (5, 5, 5);
-                endpoints[0, 0] = (ushort)(block0 >> 5 & 0x3FF);
-                endpoints[0, 1] = (ushort)(block0 >> 15 & 0x3FF);
-                endpoints[0, 2] = (ushort)(block0 >> 25 & 0x3FF);
+
+                endpoints2.W.Red = GetValue(header, 5, wBits);
+                endpoints2.W.Green = GetValue(header, 15, wBits);
+                endpoints2.W.Blue = GetValue(header, 25, wBits);
+
+                endpoints2.X.Red = GetValue(header, 35, tBits.Red);
+                endpoints2.X.Green = GetValue(header, 45, tBits.Green);
+                endpoints2.X.Blue = GetValue(header, 55, tBits.Blue);
+
+                endpoints2.Y.Red = GetValue(header, 65, 5);
+                endpoints2.Y.Green = GetValue(header, 41, 4) | (GetValue(header, 2, 1) << 4);
+
                 deltas[0, 0] = SignExtend(block0 >> 35 & 0x1F, 5);
                 deltas[0, 1] = SignExtend(block0 >> 45 & 0x1F, 5);
                 deltas[0, 2] = SignExtend(block0 >> 55 & 0x1F, 5);
@@ -315,7 +330,7 @@ namespace ValveResourceFormat.TextureDecoders
 
             var epm = (ushort)((1U << wBits) - 1);
 
-            if ((decvalue & 3) == 0)
+            if (mode > 10) // (decvalue & 3) == 0
             {
                 pb = (byte)(block64 >> 13 & 0x1F);
                 ib = block64 >> 18;
