@@ -43,7 +43,7 @@ namespace ValveResourceFormat.TextureDecoders
             }
         }
 
-        internal static void DecompressBlock(int x, int y, ReadOnlySpan<byte> @in, int rowBytes, int bytesPerPixel, Span<byte> data, Span<float> dataHdr, ushort[,] endpoints, ushort[,] deltas)
+        internal static void DecompressBlock(int x, int y, ReadOnlySpan<byte> @in, int rowBytes, int bytesPerPixel, Span<byte> data, Span<float> dataHdr, ushort[,] endpointsOld, ushort[,] deltasOld)
         {
             if (@in.Length < 16)
             {
@@ -73,19 +73,19 @@ namespace ValveResourceFormat.TextureDecoders
                 decvalue = (byte)(header & 0x1F); // 2, 3, 6, 7, 10, 11, 14, 15, 18, 22, 26, 30
             }
 
-            Array.Clear(endpoints, 0, endpoints.Length);
-            Array.Clear(deltas, 0, deltas.Length);
+            Array.Clear(endpointsOld, 0, endpointsOld.Length);
+            Array.Clear(deltasOld, 0, deltasOld.Length);
 
-            var region = 0; // one or two
+            int region; // one or two
             var mode = 0;
+            ushort shapeIndex;
+            ulong indices;
+            bool isTransformed;
 
             ushort wBits = 0;
 
             UShortColor tBits = (0, 0, 0);
-            (IntColor W, IntColor X, IntColor Y, IntColor Z) endpoints2;
-
-            byte pb = 0;
-            ulong ib = 0;
+            (IntColor W, IntColor X, IntColor Y, IntColor Z) endpoints;
 
             if (decvalue == 0)
             {
@@ -93,248 +93,258 @@ namespace ValveResourceFormat.TextureDecoders
                 wBits = 10;
                 tBits = (5, 5, 5);
 
-                endpoints2.W.Red = GetValue(header, 5, wBits);
-                endpoints2.W.Green = GetValue(header, 15, wBits);
-                endpoints2.W.Blue = GetValue(header, 25, wBits);
+                endpoints.W.Red = GetValue(header, 5, wBits);
+                endpoints.W.Green = GetValue(header, 15, wBits);
+                endpoints.W.Blue = GetValue(header, 25, wBits);
 
-                endpoints2.X.Red = GetValue(header, 35, tBits.Red);
-                endpoints2.X.Green = GetValue(header, 45, tBits.Green);
-                endpoints2.X.Blue = GetValue(header, 55, tBits.Blue);
+                /*
+                endpoints.X.Red = GetValue(header, 35, tBits.Red);
+                endpoints.X.Green = GetValue(header, 45, tBits.Green);
+                endpoints.X.Blue = GetValue(header, 55, tBits.Blue);
 
-                endpoints2.Y.Red = GetValue(header, 65, 5);
-                endpoints2.Y.Green = GetValue(header, 41, 4) | (Bit(header, 2) << 4);
+                endpoints.Y.Red = GetValue(header, 65, 5);
+                endpoints.Y.Green = GetValue(header, 41, 4) | (Bit(header, 2) << 4);
+                */
 
-                deltas[0, 0] = (ushort)GetValue(header, 35, 5);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 5);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 5);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 5);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 2) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 3) << 4));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 5);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 4) << 4));
+                endpointsOld[0, 0] = (ushort)endpoints.W.Red;
+                endpointsOld[0, 1] = (ushort)endpoints.W.Green;
+                endpointsOld[0, 2] = (ushort)endpoints.W.Blue;
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 5);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 5);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 5);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 5);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 2) << 4));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 3) << 4));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 5);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 4) << 4));
             }
             else if (decvalue == 1)
             {
                 mode = 2;
                 wBits = 7;
                 tBits = (6, 6, 6);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 7);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 7);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 7);
-                deltas[0, 0] = (ushort)GetValue(header, 35, 6);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 6);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 6);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 6);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 2) << 5));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 6);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | ((GetValue(header, 3, 2)) << 4));
-                deltas[2, 2] = (ushort)((GetValue(header, 12, 2)) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 7);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 7);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 7);
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 6);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 6);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 6);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 6);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 2) << 5));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 6);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | ((GetValue(header, 3, 2)) << 4));
+                deltasOld[2, 2] = (ushort)((GetValue(header, 12, 2)) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
             }
             else if (decvalue == 2)
             {
                 mode = 3;
                 wBits = 11;
                 tBits = (5, 4, 4);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 40) << 10));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 49) << 10));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 59) << 10));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 5);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 4);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 4);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 5);
-                deltas[1, 1] = (ushort)GetValue(header, 41, 4);
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 5);
-                deltas[2, 1] = (ushort)GetValue(header, 51, 4);
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 40) << 10));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 49) << 10));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 59) << 10));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 5);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 4);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 4);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 5);
+                deltasOld[1, 1] = (ushort)GetValue(header, 41, 4);
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 5);
+                deltasOld[2, 1] = (ushort)GetValue(header, 51, 4);
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
             }
             else if (decvalue == 6)
             {
                 mode = 3;
                 wBits = 11;
                 tBits = (4, 5, 4);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 39) << 10));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 50) << 10));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 59) << 10));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 4);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 5);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 4);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 4);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 75) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 4);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
-                deltas[2, 2] = (ushort)(Bit(header, 69) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 39) << 10));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 50) << 10));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 59) << 10));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 4);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 5);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 4);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 4);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 75) << 4));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 4);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
+                deltasOld[2, 2] = (ushort)(Bit(header, 69) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
             }
             else if (decvalue == 10)
             {
                 mode = 5;
                 wBits = 11;
                 tBits = (4, 4, 5);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 39) << 10));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 49) << 10));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 60) << 10));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 4);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 4);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 5);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 4);
-                deltas[1, 1] = (ushort)GetValue(header, 41, 4);
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 40) << 4));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 4);
-                deltas[2, 1] = (ushort)GetValue(header, 51, 4);
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 69) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 75) << 3));
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 39) << 10));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 49) << 10));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 60) << 10));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 4);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 4);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 5);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 4);
+                deltasOld[1, 1] = (ushort)GetValue(header, 41, 4);
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 40) << 4));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 4);
+                deltasOld[2, 1] = (ushort)GetValue(header, 51, 4);
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 69) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 75) << 3));
             }
             else if (decvalue == 14)
             {
                 mode = 6;
                 wBits = 9;
                 tBits = (5, 5, 5);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 9);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 9);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 9);
-                deltas[0, 0] = (ushort)GetValue(header, 35, 5);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 5);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 5);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 5);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 5);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 9);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 9);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 9);
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 5);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 5);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 5);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 5);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 5);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
             }
             else if (decvalue == 18)
             {
                 mode = 7;
                 wBits = 8;
                 tBits = (6, 5, 5);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 8);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 8);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 8);
-                deltas[0, 0] = (ushort)GetValue(header, 35, 6);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 5);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 5);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 6);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 6);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 13) << 4));
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 23) << 2) | (Bit(header, 33) << 3) | (Bit(header, 34) << 4));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 8);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 8);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 8);
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 6);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 5);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 5);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 6);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 6);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 13) << 4));
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 23) << 2) | (Bit(header, 33) << 3) | (Bit(header, 34) << 4));
             }
             else if (decvalue == 22)
             {
                 mode = 8;
                 wBits = 8;
                 tBits = (5, 6, 5);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 8);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 8);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 8);
-                deltas[0, 0] = (ushort)GetValue(header, 35, 5);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 6);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 5);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 5);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 23) << 5));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 5);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4) | (Bit(header, 33) << 5));
-                deltas[2, 2] = (ushort)(Bit(header, 13) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 8);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 8);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 8);
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 5);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 6);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 5);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 5);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 23) << 5));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 5);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4) | (Bit(header, 33) << 5));
+                deltasOld[2, 2] = (ushort)(Bit(header, 13) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
             }
             else if (decvalue == 26)
             {
                 mode = 9;
                 wBits = 8;
                 tBits = (5, 5, 6);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 8);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 8);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 8);
-                deltas[0, 0] = (ushort)GetValue(header, 35, 5);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 5);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 6);
-                deltas[1, 0] = (ushort)GetValue(header, 65, 5);
-                deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 23) << 5));
-                deltas[2, 0] = (ushort)GetValue(header, 71, 5);
-                deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 13) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 8);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 8);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 8);
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 5);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 5);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 6);
+                deltasOld[1, 0] = (ushort)GetValue(header, 65, 5);
+                deltasOld[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
+                deltasOld[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 23) << 5));
+                deltasOld[2, 0] = (ushort)GetValue(header, 71, 5);
+                deltasOld[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
+                deltasOld[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 13) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
             }
             else if (decvalue == 30)
             {
                 mode = 10;
                 wBits = 6;
                 tBits = (6, 6, 6);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 6);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 6);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 6);
-                endpoints[1, 0] = (ushort)GetValue(header, 35, 6);
-                endpoints[1, 1] = (ushort)GetValue(header, 45, 6);
-                endpoints[1, 2] = (ushort)GetValue(header, 55, 6);
-                endpoints[2, 0] = (ushort)GetValue(header, 65, 6);
-                endpoints[2, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 21) << 5));
-                endpoints[2, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
-                endpoints[3, 0] = (ushort)GetValue(header, 71, 6);
-                endpoints[3, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 11) << 4) | (Bit(header, 31) << 5));
-                endpoints[3, 2] = (ushort)(GetValue(header, 12, 2) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 6);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 6);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 6);
+                endpointsOld[1, 0] = (ushort)GetValue(header, 35, 6);
+                endpointsOld[1, 1] = (ushort)GetValue(header, 45, 6);
+                endpointsOld[1, 2] = (ushort)GetValue(header, 55, 6);
+                endpointsOld[2, 0] = (ushort)GetValue(header, 65, 6);
+                endpointsOld[2, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 21) << 5));
+                endpointsOld[2, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
+                endpointsOld[3, 0] = (ushort)GetValue(header, 71, 6);
+                endpointsOld[3, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 11) << 4) | (Bit(header, 31) << 5));
+                endpointsOld[3, 2] = (ushort)(GetValue(header, 12, 2) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
             }
             else if (decvalue == 3)
             {
                 mode = 11;
                 wBits = 10;
                 tBits = (10, 10, 10);
-                endpoints[0, 0] = (ushort)GetValue(header, 5, 10);
-                endpoints[0, 1] = (ushort)GetValue(header, 15, 10);
-                endpoints[0, 2] = (ushort)GetValue(header, 25, 10);
-                endpoints[1, 0] = (ushort)GetValue(header, 35, 10);
-                endpoints[1, 1] = (ushort)GetValue(header, 45, 10);
-                endpoints[1, 2] = (ushort)(GetValue(header, 55, 9) | (Bit(header, 64) << 9));
+                endpointsOld[0, 0] = (ushort)GetValue(header, 5, 10);
+                endpointsOld[0, 1] = (ushort)GetValue(header, 15, 10);
+                endpointsOld[0, 2] = (ushort)GetValue(header, 25, 10);
+                endpointsOld[1, 0] = (ushort)GetValue(header, 35, 10);
+                endpointsOld[1, 1] = (ushort)GetValue(header, 45, 10);
+                endpointsOld[1, 2] = (ushort)(GetValue(header, 55, 9) | (Bit(header, 64) << 9));
             }
             else if (decvalue == 7)
             {
                 mode = 12;
                 wBits = 11;
                 tBits = (9, 9, 9);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 9);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 9);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 9);
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 9);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 9);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 9);
             }
             else if (decvalue == 11)
             {
                 mode = 13;
                 wBits = 12;
                 tBits = (8, 8, 8);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10) | (Bit(header, 43) << 11));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10) | (Bit(header, 53) << 11));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10) | (Bit(header, 63) << 11));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 8);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 8);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 8);
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10) | (Bit(header, 43) << 11));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10) | (Bit(header, 53) << 11));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10) | (Bit(header, 63) << 11));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 8);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 8);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 8);
             }
             else if (decvalue == 15)
             {
                 mode = 14;
                 wBits = 16;
                 tBits = (4, 4, 4);
-                endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10) | (Bit(header, 43) << 11) | (Bit(header, 42) << 12) | (Bit(header, 41) << 13) | (Bit(header, 40) << 14) | (Bit(header, 39) << 15));
-                endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10) | (Bit(header, 53) << 11) | (Bit(header, 52) << 12) | (Bit(header, 51) << 13) | (Bit(header, 50) << 14) | (Bit(header, 49) << 15));
-                endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10) | (Bit(header, 63) << 11) | (Bit(header, 62) << 12) | (Bit(header, 61) << 13) | (Bit(header, 60) << 14) | (Bit(header, 59) << 15));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 8);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 8);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 8);
+                endpointsOld[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10) | (Bit(header, 43) << 11) | (Bit(header, 42) << 12) | (Bit(header, 41) << 13) | (Bit(header, 40) << 14) | (Bit(header, 39) << 15));
+                endpointsOld[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10) | (Bit(header, 53) << 11) | (Bit(header, 52) << 12) | (Bit(header, 51) << 13) | (Bit(header, 50) << 14) | (Bit(header, 49) << 15));
+                endpointsOld[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10) | (Bit(header, 63) << 11) | (Bit(header, 62) << 12) | (Bit(header, 61) << 13) | (Bit(header, 60) << 14) | (Bit(header, 59) << 15));
+                deltasOld[0, 0] = (ushort)GetValue(header, 35, 8);
+                deltasOld[0, 1] = (ushort)GetValue(header, 45, 8);
+                deltasOld[0, 2] = (ushort)GetValue(header, 55, 8);
             }
 
             var epm = (ushort)((1U << wBits) - 1);
 
-            if (mode > 10)
+            if (mode <= 10)
             {
-                pb = (byte)GetValue(header, 77, 5);
-                ib = (ulong)GetValue(header, 82, 46);
+                region = 1;
+                shapeIndex = (byte)GetValue(header, 77, 5);
+                indices = (ulong)GetValue(header, 82, 46);
+                isTransformed = mode < 10;
             }
             else
             {
-                ib = (ulong)GetValue(header, 65, 63);
+                region = 0;
+                shapeIndex = 0;
+                indices = (ulong)GetValue(header, 65, 63);
+                isTransformed = mode > 11;
             }
 
             static ushort Unquantize(ushort e, int epb, ushort epm)
@@ -361,7 +371,7 @@ namespace ValveResourceFormat.TextureDecoders
                 {
                     for (var e = 0; e < 3; e++)
                     {
-                        endpoints[d + 1, e] = (ushort)((endpoints[0, e] + deltas[d, e]) & epm);
+                        endpointsOld[d + 1, e] = (ushort)((endpointsOld[0, e] + deltasOld[d, e]) & epm);
                     }
                 }
             }
@@ -370,7 +380,7 @@ namespace ValveResourceFormat.TextureDecoders
             {
                 for (var e = 0; e < 3; e++)
                 {
-                    endpoints[s, e] = Unquantize(endpoints[s, e], wBits, epm);
+                    endpointsOld[s, e] = Unquantize(endpointsOld[s, e], wBits, epm);
                 }
             }
 
@@ -390,15 +400,15 @@ namespace ValveResourceFormat.TextureDecoders
                     if ((decvalue & 3) == 3)
                     {
                         isAnchor = (io == 0) ? 1 : 0;
-                        cweight = BPTCWeights4[ib & 0xFu >> isAnchor];
-                        ib >>= 4 - isAnchor;
+                        cweight = BPTCWeights4[indices & 0xFu >> isAnchor];
+                        indices >>= 4 - isAnchor;
                     }
                     else
                     {
-                        subset = (byte)(BPTCPartitionTable2[pb, io] * 2);
-                        isAnchor = (io == 0 || io == BPTCAnchorIndices2[pb]) ? 1 : 0;
-                        cweight = BPTCWeights3[ib & 0x7u >> isAnchor];
-                        ib >>= 3 - isAnchor;
+                        subset = (byte)(BPTCPartitionTable2[shapeIndex, io] * 2);
+                        isAnchor = (io == 0 || io == BPTCAnchorIndices2[shapeIndex]) ? 1 : 0;
+                        cweight = BPTCWeights3[indices & 0x7u >> isAnchor];
+                        indices >>= 3 - isAnchor;
                     }
 
                     // Store LDR
@@ -406,7 +416,7 @@ namespace ValveResourceFormat.TextureDecoders
                     {
                         for (var e = 0; e < 3; e++)
                         {
-                            var factor = BPTCInterpolateFactor(cweight, endpoints[subset, e], endpoints[subset + 1, e]);
+                            var factor = BPTCInterpolateFactor(cweight, endpointsOld[subset, e], endpointsOld[subset + 1, e]);
                             //gamma correction and mul 4
                             factor = (ushort)Math.Min(0xFFFF, MathF.Pow(factor / (float)((1U << 16) - 1), 2.2f) * ((1U << 16) - 1) * 4);
                             data[pixelDataOffset + 2 - e] = (byte)(factor >> 8);
@@ -421,7 +431,7 @@ namespace ValveResourceFormat.TextureDecoders
 
                     for (var e = 0; e < 3; e++)
                     {
-                        var factor = BPTCInterpolateFactor((uint)cweight, endpoints[subset, e], endpoints[subset + 1, e]);
+                        var factor = BPTCInterpolateFactor((uint)cweight, endpointsOld[subset, e], endpointsOld[subset + 1, e]);
 
                         dataHdr[pixelOffsetFloat + e] = factor;
                     }
