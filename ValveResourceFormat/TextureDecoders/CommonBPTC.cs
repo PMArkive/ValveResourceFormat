@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace ValveResourceFormat.TextureDecoders
 {
     internal class CommonBPTC
@@ -96,6 +98,32 @@ namespace ValveResourceFormat.TextureDecoders
         protected static ushort BPTCInterpolateFactor(int weight, int e0, int e1)
         {
             return (ushort)((((64 - weight) * e0) + (weight * e1) + 32) >> 6);
+        }
+
+
+        protected static float BPTCInterpolateFactor(uint weight, uint e0, uint e1)
+        {
+            var c = (((e0 + weight * e1) >> 6) * 31) >> 6;
+
+            if (c == 0)
+            {
+                return 0;
+            }
+
+            static float UintBitsToFloat(uint v) => Unsafe.As<uint, float>(ref v);
+
+            // Normalized
+            if (c > 1023)
+            {
+                return UintBitsToFloat((c << 13) + 0x38000000);
+            }
+
+            // Half-float denorms
+            var clzC = (uint)BitOperations.LeadingZeroCount(c);
+            var temp1 = c << (int)(clzC - 8);
+            var temp2 = clzC << 23;
+            var result = (temp1 ^ 0x800000) + 0x43000000 - temp2;
+            return UintBitsToFloat(result);
         }
     }
 }

@@ -838,6 +838,15 @@ namespace GUI.Types.Renderer
                 using (bitmap)
                 {
                     UploadBitmap(bitmap);
+
+                    // All textures with HDR content have the colors in linear space
+                    // Except BC6H on LDR mode.
+                    var isBc6HLdrBitmap = bitmap.ColorType != SKColorType.RgbaF32 && textureData.Format == VTexFormat.BC6H;
+
+                    if (textureData.IsHighDynamicRange && !isBc6HLdrBitmap)
+                    {
+                        decodeFlags |= TextureCodec.ColorSpaceLinear;
+                    }
                 }
 
                 return;

@@ -1,5 +1,6 @@
 // Copyright 2020 lewa_j [https://github.com/lewa-j]
 // Reference: https://registry.khronos.org/DataFormat/specs/1.3/dataformat.1.3.html#bptc_bc6h
+using System.Runtime.InteropServices;
 using SkiaSharp;
 
 namespace ValveResourceFormat.TextureDecoders
@@ -18,21 +19,25 @@ namespace ValveResourceFormat.TextureDecoders
         public void Decode(SKBitmap bitmap, Span<byte> input)
         {
             using var pixels = bitmap.PeekPixels();
-            var data = pixels.GetPixelSpan<byte>();
             var rowBytes = bitmap.RowBytes;
-            var offset = 0;
+            var bytesPerPixel = bitmap.BytesPerPixel;
+
+            var data = pixels.GetPixelSpan<byte>();
+            var dataHdr = MemoryMarshal.Cast<byte, float>(data);
 
             var endpoints = new ushort[4, 3];
+            var endpointsUint = new uint[4, 3];
             var deltas = new short[3, 3];
+
+            var inputBlocks = MemoryMarshal.Cast<byte, ulong>(input);
+            var blockOffset = 0;
 
             for (var j = 0; j < blockCountY; j++)
             {
                 for (var i = 0; i < blockCountX; i++)
                 {
-                    var block0 = BitConverter.ToUInt64(input.Slice(offset, sizeof(ulong)));
-                    offset += sizeof(ulong);
-                    var block64 = BitConverter.ToUInt64(input.Slice(offset, sizeof(ulong)));
-                    offset += sizeof(ulong);
+                    var block0 = inputBlocks[blockOffset++];
+                    var block64 = inputBlocks[blockOffset++];
 
                     ulong Bit(int p)
                     {
@@ -255,7 +260,7 @@ namespace ValveResourceFormat.TextureDecoders
 
                     var epm = (ushort)((1U << epb) - 1);
 
-                    if (m != 3 && m != 7 && m != 11 && m != 15)
+                    if ((m & 3) == 0)
                     {
                         pb = (byte)(block64 >> 13 & 0x1F);
                         ib = block64 >> 18;
@@ -265,7 +270,7 @@ namespace ValveResourceFormat.TextureDecoders
                         ib = block64 >> 1;
                     }
 
-                    ushort Unquantize(ushort e)
+                    static ushort Unquantize(ushort e, int epb, ushort epm)
                     {
                         if (epb >= 15)
                         {
@@ -298,21 +303,24 @@ namespace ValveResourceFormat.TextureDecoders
                     {
                         for (var e = 0; e < 3; e++)
                         {
-                            endpoints[s, e] = Unquantize(endpoints[s, e]);
+                            endpoints[s, e] = Unquantize(endpoints[s, e], epb, epm);
                         }
                     }
+
+                    // Every BC6H block (16 bytes) corresponds to 16 output pixels
 
                     for (var by = 0; by < 4; by++)
                     {
                         for (var bx = 0; bx < 4; bx++)
                         {
-                            var pixelIndex = (((j * 4) + by) * rowBytes) + (((i * 4) + bx) * 4);
+                            var pixelDataOffset = (((j * 4) + by) * rowBytes) + (((i * 4) + bx) * bytesPerPixel);
                             var io = (by * 4) + bx;
 
                             var isAnchor = 0;
                             byte cweight = 0;
                             byte subset = 0;
-                            if (m == 3 || m == 7 || m == 11 || m == 15)
+
+                            if ((m & 3) == 3)
                             {
                                 isAnchor = (io == 0) ? 1 : 0;
                                 cweight = BPTCWeights4[ib & 0xFu >> isAnchor];
@@ -326,15 +334,32 @@ namespace ValveResourceFormat.TextureDecoders
                                 ib >>= 3 - isAnchor;
                             }
 
-                            for (var e = 0; e < 3; e++)
+                            // Store LDR
+                            if (bytesPerPixel == 4)
                             {
-                                var factor = BPTCInterpolateFactor(cweight, endpoints[subset, e], endpoints[subset + 1, e]);
-                                //gamma correction and mul 4
-                                factor = (ushort)Math.Min(0xFFFF, MathF.Pow(factor / (float)((1U << 16) - 1), 2.2f) * ((1U << 16) - 1) * 4);
-                                data[pixelIndex + 2 - e] = (byte)(factor >> 8);
+                                for (var e = 0; e < 3; e++)
+                                {
+                                    var factor = BPTCInterpolateFactor(cweight, endpoints[subset, e], endpoints[subset + 1, e]);
+                                    //gamma correction and mul 4
+                                    factor = (ushort)Math.Min(0xFFFF, MathF.Pow(factor / (float)((1U << 16) - 1), 2.2f) * ((1U << 16) - 1) * 4);
+                                    data[pixelDataOffset + 2 - e] = (byte)(factor >> 8);
+                                }
+
+                                data[pixelDataOffset + 3] = byte.MaxValue;
+                                continue;
                             }
 
-                            data[pixelIndex + 3] = byte.MaxValue;
+                            // Store HDR
+                            var pixelOffsetFloat = pixelDataOffset / sizeof(float);
+
+                            for (var e = 0; e < 3; e++)
+                            {
+                                var factor = BPTCInterpolateFactor((uint)cweight, endpoints[subset, e], endpoints[subset + 1, e]);
+
+                                dataHdr[pixelOffsetFloat + e] = factor;
+                            }
+
+                            dataHdr[pixelOffsetFloat + 3] = 1f;
                         }
                     }
                 }
