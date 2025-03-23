@@ -152,30 +152,14 @@ namespace ValveResourceFormat.TextureDecoders
             ushort wBits = 0; // number of bits for the root endpoint
             Span<byte> tBits = [0, 0, 0]; // number of bits used for the transformed endpoints
 
-            (IntColor W, IntColor X, IntColor Y, IntColor Z) endpoints2;
-
             if (decvalue == 0)
             {
                 mode = 1;
                 wBits = 10;
                 tBits = [5, 5, 5];
-
-                endpoints2.W.Red = GetValue(header, 5, wBits);
-                endpoints2.W.Green = GetValue(header, 15, wBits);
-                endpoints2.W.Blue = GetValue(header, 25, wBits);
-
-                /*
-                endpoints.X.Red = GetValue(header, 35, tBits.Red);
-                endpoints.X.Green = GetValue(header, 45, tBits.Green);
-                endpoints.X.Blue = GetValue(header, 55, tBits.Blue);
-
-                endpoints.Y.Red = GetValue(header, 65, 5);
-                endpoints.Y.Green = GetValue(header, 41, 4) | (Bit(header, 2) << 4);
-                */
-
-                endpoints[0, 0] = (ushort)endpoints2.W.Red;
-                endpoints[0, 1] = (ushort)endpoints2.W.Green;
-                endpoints[0, 2] = (ushort)endpoints2.W.Blue;
+                endpoints[0, 0] = (ushort)GetValue(header, 5, wBits);
+                endpoints[0, 1] = (ushort)GetValue(header, 15, wBits);
+                endpoints[0, 2] = (ushort)GetValue(header, 25, wBits);
                 deltas[0, 0] = (ushort)GetValue(header, 35, 5);
                 deltas[0, 1] = (ushort)GetValue(header, 45, 5);
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
@@ -477,7 +461,7 @@ namespace ValveResourceFormat.TextureDecoders
                     if (region == 0)
                     {
                         isAnchor = (io == 0) ? 1 : 0;
-                        paletteIndex = (int)(indices & 0xFu >> isAnchor);
+                        paletteIndex = (int)(indices & (0xFu >> isAnchor));
                         cweight = BPTCWeights4[paletteIndex];
                         indices >>= 4 - isAnchor;
                     }
@@ -485,7 +469,7 @@ namespace ValveResourceFormat.TextureDecoders
                     {
                         subset = BPTCPartitionTable2[shapeIndex, io] * 2;
                         isAnchor = (io == 0 || io == BPTCAnchorIndices2[shapeIndex]) ? 1 : 0;
-                        paletteIndex = (int)(indices & 0x7u >> isAnchor);
+                        paletteIndex = (int)(indices & (0x7u >> isAnchor));
                         cweight = BPTCWeights3[paletteIndex];
                         indices >>= 3 - isAnchor;
                     }
