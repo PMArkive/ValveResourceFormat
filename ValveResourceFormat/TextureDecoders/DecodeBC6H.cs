@@ -103,7 +103,7 @@ namespace ValveResourceFormat.TextureDecoders
                 return (int)((a * weights[denom - i] + b * weights[i]) / (float)(1 << 6));
             }
 
-            static void GeneratePaletteQuantitized(int region, ushort[,] endpoints, Span<IntColor> palette, int wBits)
+            static void GeneratePaletteQuantitized(int region, int[,] endpoints, Span<IntColor> palette, int wBits)
             {
                 int a, b, lerped;
 
@@ -123,7 +123,9 @@ namespace ValveResourceFormat.TextureDecoders
 
                     a = Unquantitize(endpoints[region, 2], wBits);
                     b = Unquantitize(endpoints[region + 1, 2], wBits);
-                    palette[i].Blue = FinishUnquantitize(Lerp(a, b, i, palette.Length - 1));
+
+                    lerped = Lerp(a, b, i, palette.Length - 1);
+                    palette[i].Blue = FinishUnquantitize(lerped);
                 }
             }
 
@@ -138,7 +140,7 @@ namespace ValveResourceFormat.TextureDecoders
                 decvalue = (byte)(header & 0x1F); // 2, 3, 6, 7, 10, 11, 14, 15, 18, 22, 26, 30
             }
 
-            var endpoints = new ushort[4, 3];
+            var endpoints = new int[4, 3];
             var deltas = new ushort[3, 3];
 
             int region; // one or two
@@ -222,7 +224,7 @@ namespace ValveResourceFormat.TextureDecoders
             }
             else if (decvalue == 6)
             {
-                mode = 3;
+                mode = 4;
                 wBits = 11;
                 tBits = [4, 5, 4];
                 endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 39) << 10));
@@ -251,10 +253,15 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 4);
                 deltas[1, 1] = (ushort)GetValue(header, 41, 4);
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 40) << 4));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 40) << 4));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 4);
                 deltas[2, 1] = (ushort)GetValue(header, 51, 4);
-                deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 69) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 75) << 3));
+                deltas[2, 2] = (ushort)(Bit(header, 50) |
+                                       (Bit(header, 13) << 1) |
+                                       (Bit(header, 70) << 2) |
+                                       (Bit(header, 76) << 3) |
+                                       (Bit(header, 34) << 4) |
+                                       (Bit(header, 33) << 5));
             }
             else if (decvalue == 14)
             {
@@ -426,7 +433,7 @@ namespace ValveResourceFormat.TextureDecoders
                     for (var i = 0; i < 3; i++)
                     {
                         var extended = SignExtend(deltas[0, i], tBits[i]);
-                        endpoints[1, i] = (ushort)((endpoints[0, i] + extended) & epm);
+                        endpoints[1, i] = (endpoints[0, i] + extended) & epm;
                     }
                 }
 
@@ -439,13 +446,13 @@ namespace ValveResourceFormat.TextureDecoders
                     for (var i = 0; i < 3; i++)
                     {
                         var extended1 = SignExtend(deltas[0, i], tBits[i]);
-                        endpoints[1, i] = (ushort)((endpoints[0, i] + extended1) & epm);
+                        endpoints[1, i] = (endpoints[0, i] + extended1) & epm;
 
                         var extended2 = SignExtend(deltas[1, i], tBits[i]);
-                        endpoints[2, i] = (ushort)((endpoints[0, i] + extended2) & epm);
+                        endpoints[2, i] = (endpoints[0, i] + extended2) & epm;
 
                         var extended3 = SignExtend(deltas[2, i], tBits[i]);
-                        endpoints[3, i] = (ushort)((endpoints[0, i] + extended3) & epm);
+                        endpoints[3, i] = (endpoints[0, i] + extended3) & epm;
                     }
                 }
 
@@ -510,6 +517,10 @@ namespace ValveResourceFormat.TextureDecoders
                     //     color.Red = (ushort)Math.Abs(color.Blue);
                     // }
 
+                    Debug.Assert(color.Red >= 0);
+                    Debug.Assert(color.Green >= 0);
+                    Debug.Assert(color.Blue >= 0);
+
                     // Int to Half
                     dataHdr[pixelOffsetFloat + 0] = (float)Unsafe.As<int, Half>(ref color.Red);
                     dataHdr[pixelOffsetFloat + 1] = (float)Unsafe.As<int, Half>(ref color.Green);
@@ -519,13 +530,13 @@ namespace ValveResourceFormat.TextureDecoders
             }
         }
 
-        private static short SignExtend(ushort v, int bits)
+        private static int SignExtend(ushort v, int bits)
         {
-            var extend = (short)v;
+            var extend = (int)v;
 
             if (((v >> (bits - 1)) & 1) == 1)
             {
-                extend |= checked((short)(-1u << bits));
+                extend |= -1 << bits;
             }
 
             return extend;
