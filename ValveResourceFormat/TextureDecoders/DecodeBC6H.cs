@@ -410,6 +410,32 @@ namespace ValveResourceFormat.TextureDecoders
             Span<IntColor> palette0 = stackalloc IntColor[16];
             Span<IntColor> palette1 = stackalloc IntColor[16];
 
+            Span<byte> decodedIndices = stackalloc byte[16];
+            var indexOffset = region == 0 ? ONE_REGION_INDEX_OFFSET : TWO_REGION_INDEX_OFFSET;
+
+            for (var i = 0; i < decodedIndices.Length; i++)
+            {
+                var nbits = 3;
+                if (i == 0) // isAnchor
+                {
+                    nbits = region == 0 ? 3 : 2;
+                }
+                else
+                {
+                    if (region == 0)
+                    {
+                        nbits = 4;
+                    }
+                    else
+                    {
+                        nbits = BPTCAnchorIndices2[shapeIndex] == i ? 2 : 3;
+                    }
+                }
+
+                decodedIndices[i] = (byte)GetValue(header, indexOffset, nbits);
+                indexOffset += nbits;
+            }
+
             if (region == 0)
             {
                 if (isTransformed)
@@ -453,38 +479,16 @@ namespace ValveResourceFormat.TextureDecoders
                     var pixelDataOffset = (x * 4 + by) * rowBytes + (y * 4 + bx) * bytesPerPixel;
                     var io = by * 4 + bx;
 
-                    var isAnchor = 0;
-                    byte cweight = 0;
-                    var subset = 0;
-                    var paletteIndex = 0;
+                    var paletteIndex = decodedIndices[io];
+                    var subset = region == 0
+                        ? 0
+                        : BPTCPartitionTable2[shapeIndex, io] * 2;
 
-                    if (region == 0)
-                    {
-                        isAnchor = (io == 0) ? 1 : 0;
-                        paletteIndex = (int)(indices & (0xFu >> isAnchor));
-                        cweight = BPTCWeights4[paletteIndex];
-                        indices >>= 4 - isAnchor;
-                    }
-                    else
-                    {
-                        subset = BPTCPartitionTable2[shapeIndex, io] * 2;
-                        isAnchor = (io == 0 || io == BPTCAnchorIndices2[shapeIndex]) ? 1 : 0;
-                        paletteIndex = (int)(indices & (0x7u >> isAnchor));
-                        cweight = BPTCWeights3[paletteIndex];
-                        indices >>= 3 - isAnchor;
-                    }
 
                     // Store LDR
                     if (bytesPerPixel == 4)
                     {
-                        for (var e = 0; e < 3; e++)
-                        {
-                            var factor = BPTCInterpolateFactor(cweight, endpoints[subset, e], endpoints[subset + 1, e]);
-                            //gamma correction and mul 4
-                            factor = (ushort)Math.Min(0xFFFF, MathF.Pow(factor / (float)((1U << 16) - 1), 2.2f) * ((1U << 16) - 1) * 4);
-                            data[pixelDataOffset + 2 - e] = (byte)(factor >> 8);
-                        }
-
+                        // TODO
                         data[pixelDataOffset + 3] = byte.MaxValue;
                         continue;
                     }
@@ -493,13 +497,6 @@ namespace ValveResourceFormat.TextureDecoders
                     var pixelOffsetFloat = pixelDataOffset / sizeof(float);
 
                     var color = subset == 0 ? palette0[paletteIndex] : palette1[paletteIndex];
-
-                    // negative value workaround
-                    // {
-                    //     color.Red = (ushort)Math.Abs(color.Red);
-                    //     color.Red = (ushort)Math.Abs(color.Green);
-                    //     color.Red = (ushort)Math.Abs(color.Blue);
-                    // }
 
                     Debug.Assert(color.Red >= 0);
                     Debug.Assert(color.Green >= 0);
