@@ -143,10 +143,9 @@ namespace ValveResourceFormat.TextureDecoders
             var endpoints = new int[4, 3];
             var deltas = new ushort[3, 3];
 
-            int region; // one or two
+            int region;
             var mode = 0;
             ushort shapeIndex;
-            ulong indices;
             bool isTransformed;
 
             ushort wBits = 0; // number of bits for the root endpoint
@@ -165,7 +164,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 5);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 2) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 3) << 4));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 3) << 4));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 5);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
                 deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 4) << 4));
@@ -183,7 +182,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 6);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 6);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 2) << 5));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 6);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | ((GetValue(header, 3, 2)) << 4));
                 deltas[2, 2] = (ushort)((GetValue(header, 12, 2)) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
@@ -201,7 +200,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 4);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 5);
                 deltas[1, 1] = (ushort)GetValue(header, 41, 4);
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
+                deltas[1, 2] = (ushort)GetValue(header, 61, 4);
                 deltas[2, 0] = (ushort)GetValue(header, 71, 5);
                 deltas[2, 1] = (ushort)GetValue(header, 51, 4);
                 deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
@@ -219,7 +218,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 4);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 4);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 75) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3));
+                deltas[1, 2] = (ushort)GetValue(header, 61, 4);
                 deltas[2, 0] = (ushort)GetValue(header, 71, 4);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
                 deltas[2, 2] = (ushort)(Bit(header, 69) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3));
@@ -260,7 +259,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 5);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 5);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
                 deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
@@ -278,7 +277,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 6);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 6);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 13) << 4));
                 deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 60) << 1) | (Bit(header, 23) << 2) | (Bit(header, 33) << 3) | (Bit(header, 34) << 4));
@@ -296,7 +295,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 5);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 5);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 23) << 5));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 5);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4) | (Bit(header, 33) << 5));
                 deltas[2, 2] = (ushort)(Bit(header, 13) | (Bit(header, 60) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4));
@@ -314,7 +313,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 6);
                 deltas[1, 0] = (ushort)GetValue(header, 65, 5);
                 deltas[1, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4));
-                deltas[1, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 23) << 5));
+                deltas[1, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4) | (Bit(header, 23) << 5));
                 deltas[2, 0] = (ushort)GetValue(header, 71, 5);
                 deltas[2, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 40) << 4));
                 deltas[2, 2] = (ushort)(Bit(header, 50) | (Bit(header, 13) << 1) | (Bit(header, 70) << 2) | (Bit(header, 76) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
@@ -332,7 +331,7 @@ namespace ValveResourceFormat.TextureDecoders
                 endpoints[1, 2] = (ushort)GetValue(header, 55, 6);
                 endpoints[2, 0] = (ushort)GetValue(header, 65, 6);
                 endpoints[2, 1] = (ushort)(GetValue(header, 41, 4) | (Bit(header, 24) << 4) | (Bit(header, 21) << 5));
-                endpoints[2, 2] = (ushort)(GetValue(header, 61, 3) | (Bit(header, 64) << 3) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
+                endpoints[2, 2] = (ushort)(GetValue(header, 61, 4) | (Bit(header, 14) << 4) | (Bit(header, 22) << 5));
                 endpoints[3, 0] = (ushort)GetValue(header, 71, 6);
                 endpoints[3, 1] = (ushort)(GetValue(header, 51, 4) | (Bit(header, 11) << 4) | (Bit(header, 31) << 5));
                 endpoints[3, 2] = (ushort)(GetValue(header, 12, 2) | (Bit(header, 23) << 2) | (Bit(header, 32) << 3) | (Bit(header, 34) << 4) | (Bit(header, 33) << 5));
@@ -396,14 +395,12 @@ namespace ValveResourceFormat.TextureDecoders
             {
                 region = 1;
                 shapeIndex = (byte)GetValue(header, 77, 5);
-                indices = (ulong)GetValue(header, TWO_REGION_INDEX_OFFSET, 46);
                 isTransformed = mode < 10;
             }
             else
             {
                 region = 0;
                 shapeIndex = 0;
-                indices = (ulong)GetValue(header, ONE_REGION_INDEX_OFFSET, 63);
                 isTransformed = mode > 11;
             }
 
@@ -482,7 +479,7 @@ namespace ValveResourceFormat.TextureDecoders
                     var paletteIndex = decodedIndices[io];
                     var subset = region == 0
                         ? 0
-                        : BPTCPartitionTable2[shapeIndex, io] * 2;
+                        : BPTCPartitionTable2[shapeIndex, io];
 
 
                     // Store LDR
