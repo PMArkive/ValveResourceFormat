@@ -341,13 +341,13 @@ namespace ValveResourceFormat.TextureDecoders
             {
                 mode = 11;
                 wBits = 10;
-                tBits = [10, 10, 1];
+                tBits = [10, 10, 10];
                 endpoints[0, 0] = (ushort)GetValue(header, 5, 10);
                 endpoints[0, 1] = (ushort)GetValue(header, 15, 10);
                 endpoints[0, 2] = (ushort)GetValue(header, 25, 10);
                 endpoints[1, 0] = (ushort)GetValue(header, 35, 10);
                 endpoints[1, 1] = (ushort)GetValue(header, 45, 10);
-                endpoints[1, 2] = (ushort)(GetValue(header, 55, 9) | (Bit(header, 64) << 9));
+                endpoints[1, 2] = (ushort)GetValue(header, 55, 10);
             }
             else if (decvalue == 7)
             {
@@ -381,9 +381,9 @@ namespace ValveResourceFormat.TextureDecoders
                 endpoints[0, 0] = (ushort)(GetValue(header, 5, 10) | (Bit(header, 44) << 10) | (Bit(header, 43) << 11) | (Bit(header, 42) << 12) | (Bit(header, 41) << 13) | (Bit(header, 40) << 14) | (Bit(header, 39) << 15));
                 endpoints[0, 1] = (ushort)(GetValue(header, 15, 10) | (Bit(header, 54) << 10) | (Bit(header, 53) << 11) | (Bit(header, 52) << 12) | (Bit(header, 51) << 13) | (Bit(header, 50) << 14) | (Bit(header, 49) << 15));
                 endpoints[0, 2] = (ushort)(GetValue(header, 25, 10) | (Bit(header, 64) << 10) | (Bit(header, 63) << 11) | (Bit(header, 62) << 12) | (Bit(header, 61) << 13) | (Bit(header, 60) << 14) | (Bit(header, 59) << 15));
-                deltas[0, 0] = (ushort)GetValue(header, 35, 8);
-                deltas[0, 1] = (ushort)GetValue(header, 45, 8);
-                deltas[0, 2] = (ushort)GetValue(header, 55, 8);
+                deltas[0, 0] = (ushort)GetValue(header, 35, 4);
+                deltas[0, 1] = (ushort)GetValue(header, 45, 4);
+                deltas[0, 2] = (ushort)GetValue(header, 55, 4);
             }
 
             var epm = (ushort)((1U << wBits) - 1);
