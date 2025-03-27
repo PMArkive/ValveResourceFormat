@@ -385,7 +385,7 @@ namespace ValveResourceFormat.TextureDecoders
                 deltas[0, 2] = (ushort)GetValue(header, 55, 4);
             }
 
-            var epm = (ushort)((1U << wBits) - 1);
+            var epm = (1 << wBits) - 1;
 
             // bit locations to start saving color index values
             const int ONE_REGION_INDEX_OFFSET = 65;
@@ -510,24 +510,16 @@ namespace ValveResourceFormat.TextureDecoders
 
         private static int SignExtend(ushort v, int bits)
         {
-            var extend = (int)v;
+            var signed = (int)v;
+            var hasSetSignBit = ((v >> (bits - 1)) & 1) == 1;
+            var extendedSignBit = -1 << (bits);
 
-            if (((v >> (bits - 1)) & 1) == 1)
+            if (hasSetSignBit)
             {
-                extend |= -1 << bits;
+                signed |= extendedSignBit;
             }
 
-            return extend;
-        }
-
-        private static short SignExtend(ulong v, int bits)
-        {
-            if (((v >> (bits - 1)) & 1) == 1)
-            {
-                v |= (uint)(-1L << bits);
-            }
-
-            return (short)v;
+            return signed;
         }
     }
 }
