@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using Datamodel;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.IO.ContentFormats.DmxModel;
 using ValveResourceFormat.IO.ContentFormats.ValveMap;
@@ -44,6 +46,7 @@ public sealed class MapExtract
     private List<CMapWorldLayer> WorldLayers { get; set; }
     private Dictionary<int, MapNode> UniqueNodeIds { get; set; }
     private CMapRootElement MapDocument { get; set; }
+    private CMapRootElement AdditionalMapDocument { get; set; }
 
     private readonly IFileLoader FileLoader;
 
@@ -218,6 +221,23 @@ public sealed class MapExtract
             FileName = LumpFolder + "_d.vmap",
         };
 
+        if (AdditionalMapDocument != null)
+        {
+            using var additionalDatamodel = new Datamodel.Datamodel("vmap", 29)
+            {
+                Root = AdditionalMapDocument,
+            };
+
+            var ms = new MemoryStream();
+            additionalDatamodel.Save(ms, "binary", 9);
+
+            vmap.SubFiles.Add(new SubFile
+            {
+                Extract = ms.ToArray,
+                FileName = LumpFolder + "_d2.vmap",
+            });
+        }
+
         foreach (var sceneObjectResourceName in SceneObjectsToExtract)
         {
             var sceneObjectNameCompiled = sceneObjectResourceName + GameFileLoader.CompiledFileSuffix;
@@ -304,6 +324,8 @@ public sealed class MapExtract
             }
         }
 
+        AdditionalMapDocument = CreateAdditionalVmapFiles();
+
         foreach (var entityLumpName in EntityLumpNames)
         {
             var entityLumpCompiled = entityLumpName + GameFileLoader.CompiledFileSuffix;
@@ -334,6 +356,109 @@ public sealed class MapExtract
 #endif
 
         return stream.ToArray();
+    }
+
+    private CMapRootElement CreateAdditionalVmapFiles()
+    {
+        const int OneGiB = 1024 * 1024 * 1024;
+        var accumulatedMapMeshSize = 0;
+
+        CMapRootElement additionalVmap = null;
+
+        var removedMeshes = new HashSet<CMapMesh>();
+        foreach (var mesh in MapDocument.World.Children.OfType<CMapMesh>())
+        {
+            accumulatedMapMeshSize += TotalMapMeshSize(mesh);
+
+            var thresholdCrossedTimes = accumulatedMapMeshSize / OneGiB;
+
+            // if the threshold is crossed, we need to create a new vmap, and move the upcoming meshes to it.
+
+            if (thresholdCrossedTimes > 0)
+            {
+                additionalVmap ??= new CMapRootElement();
+                additionalVmap.World.Children.Add(mesh);
+                removedMeshes.Add(mesh);
+                // todo: also remove from selection set
+            }
+        }
+
+        static bool RemoveSelectionSetRecursive(CMapSelectionSet selectionSet, MapNode node)
+        {
+            var removed = selectionSet.SelectionSetData.SelectedObjects.Remove(node);
+
+            foreach (var child in selectionSet.Children.OfType<CMapSelectionSet>())
+            {
+                removed = removed || RemoveSelectionSetRecursive(child, node);
+            }
+
+            return removed;
+        }
+
+        foreach (var mesh in removedMeshes)
+        {
+            var removed = MapDocument.World.Children.Remove(mesh);
+
+            // remove from any selection set as well
+            removed = RemoveSelectionSetRecursive(S2VSelectionSet, mesh);
+        }
+
+        return additionalVmap;
+
+        #region Mesh Size Calculation
+
+        static int GetArraySize<T>(Array<T> array)
+        {
+            return array.Count * Unsafe.SizeOf<T>();
+        }
+
+        static void GetTotalDataStreamSizes(ElementArray streams, ref int accumulatedMapMeshSize)
+        {
+            CountSpecialType<int>(streams, ref accumulatedMapMeshSize);
+            CountSpecialType<float>(streams, ref accumulatedMapMeshSize);
+            CountSpecialType<Vector2>(streams, ref accumulatedMapMeshSize);
+            CountSpecialType<Vector3>(streams, ref accumulatedMapMeshSize);
+            CountSpecialType<Vector4>(streams, ref accumulatedMapMeshSize);
+
+            static void CountSpecialType<T>(ElementArray streams, ref int accumulatedMapMeshSize)
+            {
+                foreach (var dataStream in streams.OfType<CDmePolygonMeshDataStream<T>>())
+                {
+                    accumulatedMapMeshSize += GetArraySize(dataStream.Data);
+                }
+            }
+        }
+
+        static int TotalMapMeshSize(CMapMesh mesh)
+        {
+            var meshSize = 0;
+            // face-vertices
+            GetTotalDataStreamSizes(mesh.MeshData.FaceVertexData.Streams, ref meshSize);
+
+            // vertices
+            meshSize += GetArraySize(mesh.MeshData.VertexEdgeIndices);
+            meshSize += GetArraySize(mesh.MeshData.VertexDataIndices);
+            GetTotalDataStreamSizes(mesh.MeshData.VertexData.Streams, ref meshSize);
+
+            // edges
+            meshSize += GetArraySize(mesh.MeshData.EdgeVertexIndices)
+                + GetArraySize(mesh.MeshData.EdgeDataIndices)
+                + GetArraySize(mesh.MeshData.EdgeOppositeIndices)
+                + GetArraySize(mesh.MeshData.EdgeNextIndices)
+                + GetArraySize(mesh.MeshData.EdgeFaceIndices)
+                + GetArraySize(mesh.MeshData.EdgeDataIndices)
+                + GetArraySize(mesh.MeshData.EdgeVertexDataIndices);
+            GetTotalDataStreamSizes(mesh.MeshData.EdgeData.Streams, ref meshSize);
+
+            // faces
+            meshSize += GetArraySize(mesh.MeshData.FaceEdgeIndices);
+            meshSize += GetArraySize(mesh.MeshData.FaceDataIndices);
+            meshSize += GetArraySize(mesh.MeshData.Materials);
+            GetTotalDataStreamSizes(mesh.MeshData.FaceData.Streams, ref meshSize);
+            return meshSize;
+        }
+
+        #endregion Mesh Size Calculation
     }
 
     private void CreateSelectionSets(CMapSelectionSet root)
