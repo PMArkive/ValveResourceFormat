@@ -46,7 +46,7 @@ public sealed class MapExtract
     private List<CMapWorldLayer> WorldLayers { get; set; }
     private Dictionary<int, MapNode> UniqueNodeIds { get; set; }
     private CMapRootElement MapDocument { get; set; }
-    private CMapRootElement AdditionalMapDocument { get; set; }
+    private List<CMapRootElement> AdditionalMapDocuments { get; set; }
 
     private readonly IFileLoader FileLoader;
 
@@ -218,14 +218,15 @@ public sealed class MapExtract
         var vmap = new ContentFile
         {
             Data = ToValveMap(),
-            FileName = LumpFolder + "_d.vmap",
+            FileName = GetMapOutputName(),
         };
 
-        if (AdditionalMapDocument != null)
+        var part = 1;
+        foreach (var additionalMap in AdditionalMapDocuments)
         {
             using var additionalDatamodel = new Datamodel.Datamodel("vmap", 29)
             {
-                Root = AdditionalMapDocument,
+                Root = additionalMap,
             };
 
             var ms = new MemoryStream();
@@ -234,7 +235,7 @@ public sealed class MapExtract
             vmap.SubFiles.Add(new SubFile
             {
                 Extract = ms.ToArray,
-                FileName = LumpFolder + "_d2.vmap",
+                FileName = GetMapOutputName(++part)[LumpFolder.Length..],
             });
         }
 
@@ -288,6 +289,16 @@ public sealed class MapExtract
         return vmap;
     }
 
+    private string GetMapOutputName(int part = 1)
+    {
+        if (part > 1)
+        {
+            return $"{LumpFolder}_d_part{part}.vmap";
+        }
+
+        return $"{LumpFolder}_d.vmap";
+    }
+
     public byte[] ToValveMap()
     {
         using var datamodel = new Datamodel.Datamodel("vmap", 29);
@@ -324,7 +335,7 @@ public sealed class MapExtract
             }
         }
 
-        AdditionalMapDocument = CreateAdditionalVmapFiles();
+        AdditionalMapDocuments = SplitLargeMapDocument();
 
         foreach (var entityLumpName in EntityLumpNames)
         {
@@ -349,21 +360,18 @@ public sealed class MapExtract
 
         using var stream = new MemoryStream();
 
-#if DEBUG
-        datamodel.Save(stream, "keyvalues2", 4);
-#else
+        // datamodel.Save(stream, "keyvalues2", 4)
         datamodel.Save(stream, "binary", 9);
-#endif
 
         return stream.ToArray();
     }
 
-    private CMapRootElement CreateAdditionalVmapFiles()
+    private List<CMapRootElement> SplitLargeMapDocument()
     {
         const int OneGiB = 1024 * 1024 * 1024;
         var accumulatedMapMeshSize = 0;
 
-        CMapRootElement additionalVmap = null;
+        List<CMapRootElement> additionalMaps = [];
 
         var removedMeshes = new HashSet<CMapMesh>();
         foreach (var mesh in MapDocument.World.Children.OfType<CMapMesh>())
@@ -376,10 +384,14 @@ public sealed class MapExtract
 
             if (thresholdCrossedTimes > 0)
             {
-                additionalVmap ??= new CMapRootElement();
-                additionalVmap.World.Children.Add(mesh);
+                if (additionalMaps.Count < thresholdCrossedTimes)
+                {
+                    additionalMaps.Add([]);
+                    ProgressReporter.Report("Creating additional map document due large editable mesh size.");
+                }
+
+                additionalMaps[thresholdCrossedTimes - 1].World.Children.Add(mesh);
                 removedMeshes.Add(mesh);
-                // todo: also remove from selection set
             }
         }
 
@@ -403,7 +415,7 @@ public sealed class MapExtract
             removed = RemoveSelectionSetRecursive(S2VSelectionSet, mesh);
         }
 
-        return additionalVmap;
+        return additionalMaps;
 
         #region Mesh Size Calculation
 
