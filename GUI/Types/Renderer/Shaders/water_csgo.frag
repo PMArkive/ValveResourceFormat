@@ -11,6 +11,10 @@ in vec4 vColorBlendValues;
 
 out vec4 outputColor;
 
+#define F_REFLECTION_TYPE 0 // (0="Sky Color Only", 1="Environment Cube Map", 2="SSR over Environment Cube Map")
+#define F_REFRACTION 0
+#define F_CAUSTICS 0
+
 //uniform sampler2D g_tColor; // SrgbRead(true)
 //uniform sampler2D g_tDebris;
 //uniform sampler2D g_tDebrisNormal;
@@ -25,6 +29,15 @@ uniform float g_flSkyBoxScale = 1.0;
 uniform float g_flSkyBoxFadeRange;
 uniform vec4 g_vMapUVMin = vec4(-1000.0);
 uniform vec4 g_vMapUVMax = vec4(1000.0);
+
+#if (F_REFLECTION_TYPE == 0)
+    uniform vec4 g_vSimpleSkyReflectionColor = vec4(1.0);
+#endif
+
+#if (F_REFRACTION == 1)
+    uniform sampler2D g_tSceneColor;
+    uniform sampler2D g_tSceneDepth;
+#endif
 
 uniform vec4 g_vWaterFogColor;
 uniform vec4 g_vWaterDecayColor;
@@ -83,7 +96,12 @@ void main()
     material.Height = wavesNormalHeight.z;
     material.AmbientNormal = material.Normal;
     material.SpecularColor = vec3(1.0);
-    vec3 reflectionColor = GetEnvironment(material);
+
+    #if (F_REFLECTION_TYPE == 0)
+        vec3 reflectionColor = SrgbGammaToLinear(g_vSimpleSkyReflectionColor.xyz);
+    #else
+        vec3 reflectionColor = GetEnvironment(material);
+    #endif
 
     vec3 color = SrgbGammaToLinear(mix(g_vWaterFogColor.rgb, g_vWaterDecayColor.rgb, decay_factor));
 
@@ -98,7 +116,13 @@ void main()
 
     float alpha = max(decay_factor, fog_factor);
 
-    outputColor = vec4(color, alpha);
+    #if (F_REFRACTION == 1)
+
+        vec3 sceneColor = textureLod(g_tSceneColor, gl_FragCoord.xy / textureSize(g_tSceneColor, 0), 0).xyz;
+        color = mix(sceneColor, color, alpha);
+    #endif
+
+    outputColor = vec4(color, 1.0);
 
     ApplyFog(outputColor.rgb, vFragPosition);
     HandleMaterialRenderModes(outputColor, material);
