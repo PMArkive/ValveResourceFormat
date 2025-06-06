@@ -22,11 +22,47 @@ namespace GUI.Types.Renderer
         public int FirstMeshlet { get; set; }
         public int NumMeshlets { get; set; }
         public RenderMaterial Material { get; set; }
-        public int VertexArrayObject { get; set; }
+
+        public string MeshName { get; set; } = string.Empty;
+        public int VertexArrayObject { get; set; } = -1;
         public VertexDrawBuffer[] VertexBuffers { get; set; }
         public DrawElementsType IndexType { get; set; }
         public IndexDrawBuffer IndexBuffer { get; set; }
         public int VertexIdOffset { get; set; }
+
+
+        public void SetNewMaterial(RenderMaterial newMaterial)
+        {
+            DeleteVertexArrayObject();
+            Material = newMaterial;
+        }
+
+        public void UpdateVertexArrayObject(GPUMeshBufferCache meshBuffers)
+        {
+            DeleteVertexArrayObject();
+
+            VertexArrayObject = meshBuffers.GetVertexArrayObject(
+                   MeshName,
+                   VertexBuffers,
+                   Material,
+                   IndexBuffer.Handle);
+
+#if DEBUG
+            if (!string.IsNullOrEmpty(MeshName))
+            {
+                GL.ObjectLabel(ObjectLabelIdentifier.VertexArray, VertexArrayObject, MeshName.Length, MeshName);
+            }
+#endif
+        }
+
+        public void DeleteVertexArrayObject()
+        {
+            if (VertexArrayObject != -1)
+            {
+                GL.DeleteVertexArray(VertexArrayObject);
+                VertexArrayObject = -1;
+            }
+        }
     }
 
     internal struct IndexDrawBuffer

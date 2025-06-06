@@ -88,7 +88,7 @@ namespace GUI.Types.Renderer
                 }
             }
 
-            Shader = guiContext.ShaderLoader.LoadShader(material.ShaderName, combinedShaderParameters);
+            Shader = guiContext.ShaderLoader.LoadShader(material.ShaderName, combinedShaderParameters, blocking: false);
             SortId = GetSortId();
         }
 
