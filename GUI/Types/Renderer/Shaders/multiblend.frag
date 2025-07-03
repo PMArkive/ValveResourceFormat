@@ -78,29 +78,15 @@ uniform vec3 g_vColorTintB3 = vec3(1.0);
 #include "common/ViewConstants.glsl"
 uniform float g_flBumpStrength = 1.0;
 
-// from texturing.glsl
-float ApplyBlendModulation(float blendFactor, float blendMask, float blendSoftness)
-{
-    float minb = max(0.0, blendMask - blendSoftness);
-    float maxb = min(1.0, blendMask + blendSoftness);
+// all these to get access to CalculateSunShadowMapVisibility lol
+#include "common/features.glsl"
+#include "common/fullbright.glsl"
+#include "common/LightingConstants.glsl"
+#include "common/texturing.glsl"
+#include "common/lighting_common.glsl"
+#include "common/pbr.glsl"
+#include "common/lighting.glsl"
 
-    return smoothstep(minb, maxb, blendFactor);
-}
-
-#if (F_NORMAL_MAP == 1)
-
-    //Calculate the normal of this fragment in world space
-    vec3 calculateWorldNormal(vec3 normalMap, vec3 normal, vec3 tangent, vec3 bitangent)
-    {
-        //vec3 tangent = vec3(vNormalOut.z, vNormalOut.y, -vNormalOut.x);
-        //vec3 bitangent = cross(vNormalOut, tangent);
-        //Make the tangent space matrix
-        mat3 tangentSpace = mat3(tangent, bitangent, normal);
-
-        //Calculate the tangent normal in world space and return it
-        return normalize(tangentSpace * normalMap);
-    }
-#endif
 
 //Main entry point
 void main()
@@ -207,13 +193,11 @@ void main()
     vec3 finalNormal = normalize(vNormalOut.xyz);
 #endif
 
-    //Don't need lighting yet
-    //Get the direction from the fragment to the light - light position == camera position for now
-    vec3 lightDirection = normalize(g_vCameraPositionWs - vFragPosition);
+    vec3 lightDirection = GetEnvLightDirection(0u);
 
-    //Calculate half-lambert lighting
-    float illumination = dot(finalNormal, lightDirection);
-    illumination = illumination * 0.5 + 0.5;
+    float illumination = max(0.0, dot(finalNormal, lightDirection));
+    illumination *= CalculateSunShadowMapVisibility(vFragPosition);
+    illumination = illumination + 0.6;
     illumination = pow2(illumination);
 
     if (g_iRenderMode == renderMode_FullBright)

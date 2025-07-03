@@ -69,6 +69,25 @@ namespace GUI.Types.Renderer
                 LoadEntitiesFromLump(entityLump, "world_layer_base", Matrix4x4.Identity); // TODO: Hardcoded layer name
             }
 
+            if (true)
+            {
+                var angles = new Vector3(50, 43, 0);
+
+                scene.Add(new SceneLight(scene)
+                {
+                    Type = SceneLight.LightType.Directional,
+                    Transform = EntityTransformHelper.CreateRotationMatrixFromEulerAngles(angles),
+                    Direction = SceneLight.AnglesToDirection(angles),
+                    Color = new Vector3(1.0f, 1.0f, 1.0f),
+                    Brightness = 1.0f,
+                    LayerName = "world_layer_base",
+                    Name = "Source 2 Viewer Directional Light",
+                }, false);
+
+                scene.LightingInfo.EnableDynamicShadows = true;
+                scene.LightingInfo.SunLightShadowCoverageScale = 4f;
+            }
+
             Action<List<SceneLight>> lightEntityStore = scene.LightingInfo.LightmapGameVersionNumber switch
             {
                 0 or 1 => scene.LightingInfo.StoreLightMappedLights_V1,

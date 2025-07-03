@@ -86,6 +86,15 @@ vec3 calculateWorldNormal(vec3 vNormalTs)
     return normalize(tangentSpace * vNormalTs);
 }
 
+
+#include "common/features.glsl"
+#include "common/fullbright.glsl"
+#include "common/LightingConstants.glsl"
+#include "common/texturing.glsl"
+#include "common/lighting_common.glsl"
+#include "common/pbr.glsl"
+#include "common/lighting.glsl"
+
 void main()
 {
     vec2 coordsColor = vTexCoordOut;
@@ -123,8 +132,7 @@ void main()
     }
 #endif
 
-    //Get the direction from the fragment to the light - light position == camera position for now
-    vec3 lightDirection = normalize(g_vCameraPositionWs - vFragPosition);
+    vec3 lightDirection = GetEnvLightDirection(0u);
     vec3 viewDirection = normalize(g_vCameraPositionWs - vFragPosition);
 
 #if F_FULLBRIGHT == 1 || (F_TRANSLUCENT == 1 && F_ALLOW_LIGHTING_ON_TRANSLUCENT == 0)
@@ -132,7 +140,8 @@ void main()
 #else
     //Calculate lambert lighting
     float illumination = max(0.0, dot(worldNormal, lightDirection));
-    illumination = illumination * 0.5 + 0.5;
+    illumination *= CalculateSunShadowMapVisibility(vFragPosition);
+    illumination = illumination + 0.6;
     illumination = pow2(illumination);
 #endif
 
